@@ -430,7 +430,13 @@ internal fun rememberImeKeyboardCallbacks(
             onExtendCandidateStrip = { service.extendCandidateStrip() },
             onSingleCharFilterOn = { service.loadSingleCharacterCandidates() },
             onCursorMove = { direction ->
-                if (service.schemaController.moveJapaneseReadingCaret(direction)) {
+                val candState = service.candidateState.value
+                val hasCandidates = (candState.isComposing && candState.candidates.isNotEmpty()) ||
+                    candState.candidates.isNotEmpty() || candState.associationCandidates.isNotEmpty()
+                if (hasCandidates) {
+                    service.candidateState.value = candState.moveCandidateFocus(direction)
+                    service.feedbackManager.cursorStepFeedback(view)
+                } else if (service.schemaController.moveJapaneseReadingCaret(direction)) {
                     service.feedbackManager.cursorStepFeedback(view)
                 } else if (service.keyboardCallbacks?.onPreeditCursorMove?.invoke("preedit_cursor:$direction") == true) {
                     service.feedbackManager.cursorStepFeedback(view)

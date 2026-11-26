@@ -160,7 +160,7 @@ data class KeyboardInputPreferences(
      */
     val swipeUpHints: Boolean = true,
     val swipeDownHints: Boolean = true,
-    val firstStrokeFilterEnabled: Boolean = false,
+    val firstStrokeFilterEnabled: Boolean = true,
     /**
      * 微软双拼的 ing 放在 Shift 键上（和多数手机输入法一样），默认关：第二排不补分号键、L 在最右边，
      * 打了声母等韵母时左下角的 Shift 键变成 ing；见 KeysConfigHelper.setSemicolonOnShift、[SemicolonShiftKey]。

@@ -86,7 +86,7 @@ object SettingsPreferences {
      * 默认关 = 回车换行、Ctrl+回车发送（用户 11-05）。见 EnterKeyAction。
      */
     const val KEY_ENTER_SENDS = "enter_sends"
-    fun isEnterSendsEnabled(context: Context): Boolean = getPrefs(context).getBoolean(KEY_ENTER_SENDS, false)
+    fun isEnterSendsEnabled(context: Context): Boolean = getPrefs(context).getBoolean(KEY_ENTER_SENDS, true)
     fun setEnterSendsEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_ENTER_SENDS, enabled).apply()
     }
@@ -185,10 +185,10 @@ object SettingsPreferences {
     
     const val KEY_SPLIT_KEYBOARD = "split_keyboard_enabled"
 
-    /** 首笔画筛选：开启后在工具栏与按键之间显示 5 个胶囊按键，用于笔画筛选与标点上屏；默认关。 */
+    /** 首笔画筛选：开启后在工具栏与按键之间显示 5 个胶囊按键，用于笔画筛选与标点上屏；默认开。 */
     const val KEY_FIRST_STROKE_FILTER_ENABLED = "first_stroke_filter_enabled"
     fun isFirstStrokeFilterEnabled(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_FIRST_STROKE_FILTER_ENABLED, false)
+        getPrefs(context).getBoolean(KEY_FIRST_STROKE_FILTER_ENABLED, true)
     fun setFirstStrokeFilterEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_FIRST_STROKE_FILTER_ENABLED, enabled).apply()
     }

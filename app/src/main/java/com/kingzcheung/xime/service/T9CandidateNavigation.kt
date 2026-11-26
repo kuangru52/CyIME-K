@@ -66,13 +66,22 @@ private fun CandidateState.moveT9Candidate(profile: InputProfile, direction: Int
     return copy(candidateFocus = CandidateFocus.at(index, this))
 }
 
+/** 长按空格键左右滑动时移动候选词焦点；到首个、末个就停住。 */
+fun CandidateState.moveCandidateFocus(direction: Int): CandidateState {
+    val words = if (isComposing) candidates else associationCandidates
+    if (words.isEmpty()) return this
+    val index = (highlightedCandidateIndex + direction).coerceIn(0, words.lastIndex)
+    if (index == highlightedCandidateIndex && candidateFocus != null && candidateFocus.matches(this)) return this
+    return copy(candidateFocus = CandidateFocus.at(index, this))
+}
+
 internal fun CandidateState.spaceCandidateIndex(
     profile: InputProfile,
     context: android.content.Context? = null,
     strokeCode: Int? = null,
     firstStrokeFilterEnabled: Boolean = false,
 ): Int {
-    val rawIndex = if (usesT9CandidateNavigation(profile)) highlightedCandidateIndex else 0
+    val rawIndex = highlightedCandidateIndex
     if (!firstStrokeFilterEnabled || strokeCode == null || rawIndex != 0 || context == null) return rawIndex
     val filteredTop = com.kingzcheung.xime.data.FirstStrokeManager.filterCandidates(context, candidates, strokeCode).firstOrNull()
     return filteredTop?.let { candidates.indexOf(it) }?.takeIf { it >= 0 } ?: rawIndex

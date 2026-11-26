@@ -1527,7 +1527,7 @@ fun KeyboardView(
                         smsVerificationCode = cs.smsVerificationCode,
                         clipboardImage = cs.clipboardImage,
                         clipboardExtractedCount = cs.clipboardExtractedCount,
-                        highlightIndex = if (expandedDataMode || !cs.usesT9CandidateNavigation(state.inputProfile)) 0
+                        highlightIndex = if (expandedDataMode) 0
                             else cs.highlightedCandidateIndex,
                         hardwareHighlightIndex = hardwareCandidateHighlight,
                         associationHighlightIndex = cs.focusedT9AssociationIndex,
