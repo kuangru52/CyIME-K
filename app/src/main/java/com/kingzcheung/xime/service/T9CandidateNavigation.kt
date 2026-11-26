@@ -81,7 +81,7 @@ internal fun CandidateState.spaceCandidateIndex(
     strokeCode: Int? = null,
     firstStrokeFilterEnabled: Boolean = false,
 ): Int {
-    val rawIndex = highlightedCandidateIndex
+    val rawIndex = if (usesT9CandidateNavigation(profile)) highlightedCandidateIndex else 0
     if (!firstStrokeFilterEnabled || strokeCode == null || rawIndex != 0 || context == null) return rawIndex
     val filteredTop = com.kingzcheung.xime.data.FirstStrokeManager.filterCandidates(context, candidates, strokeCode).firstOrNull()
     return filteredTop?.let { candidates.indexOf(it) }?.takeIf { it >= 0 } ?: rawIndex

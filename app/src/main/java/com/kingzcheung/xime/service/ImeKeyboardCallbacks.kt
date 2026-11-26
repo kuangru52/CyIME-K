@@ -108,7 +108,7 @@ internal fun rememberImeKeyboardCallbacks(
             onT9UnconsumedDelete = service.keyRouter::processDeleteKey,
             onRetryRejectedCommit = service.keyRouter::retryRejectedCommit,
             onCancelRejectedCommit = service.keyRouter::cancelRejectedCommit,
-            onOpenPreeditEditor = preeditEditor::open,
+            onOpenPreeditEditor = null,
             onOpenSentenceEdit = sentenceEditor::open,
             onSentenceCandidates = sentenceEditor::candidates,
             onApplySentenceEdit = sentenceEditor::apply,
