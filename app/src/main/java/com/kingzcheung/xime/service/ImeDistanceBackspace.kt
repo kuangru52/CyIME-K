@@ -1,0 +1,150 @@
+package com.kingzcheung.xime.service
+
+import com.kingzcheung.xime.rime.RimeEngine
+import com.kingzcheung.xime.rime.RimeProcessResult
+import com.kingzcheung.xime.settings.LayoutKind
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/** Owned by one delete-key touch. The shared key FIFO orders it with ordinary typing. */
+internal class ImeDistanceBackspace(private val service: XimeInputMethodService, private val editor: Long) {
+    private val initial = service.uiState.value
+    private val ticket = service.inputReadiness.ticket()
+    // 焦点在键盘自己的输入框（新增固定等）时删那个框，和点按删除同一个框。
+    private val ic = service.editorConnection()
+    private val internal = initial.inputTarget.isInternal
+    private var document: DistanceBackspace? = null
+    private var code: DragCode? = null
+    private var english = ""
+    private var invalid = false
+    /** Fixed by the first non-zero count: negative counts are a right swipe (forward delete). */
+    private var forward: Boolean? = null
+    @Volatile private var desired = -1
+
+    private fun current() = ticket != null && service.inputReadiness.accepts(ticket) &&
+        service.uiState.value.let { it.inputSessionId == editor && it.currentSchemaId == initial.currentSchemaId &&
+            it.isAsciiMode == initial.isAsciiMode && it.inputTarget == initial.inputTarget &&
+            // 新增固定开着而焦点不在它上面：点按删除删的是它，滑动也不能去删应用的框。
+            (internal || !it.showQuickSendForm) } &&
+        !service.keyRouter.hasPendingCandidateCommit
+
+    fun move(signed: Int) {
+        if (signed != 0 && forward == null) forward = signed < 0
+        // The gesture never changes direction mid-touch; a stray opposite count is ignored.
+        if (signed != 0 && (signed < 0) != forward) return
+        val count = kotlin.math.abs(signed)
+        val forward = this.forward == true
+        desired = count
+        if (!current() || ic == null || (!internal && service.isSecretEditor()) || service.editorConnection() !== ic ||
+            service.keyboardCallbacks?.onPreeditKeyInput != null) return
+        service.keyRouter.postRimeJob("distance-backspace") {
+            if (invalid || !current()) return@postRimeJob
+            val engine = service.rimeEngine
+            val composing = engine.compositionActiveForDeletion()
+            if (document == null && code == null) {
+                if (count == 0) return@postRimeJob
+                val candidates = service.candidateState.value
+                if (composing == true && !initial.isAsciiMode && !initial.inputProfile.capabilities.japaneseConversion) {
+                    if (service.t9PartialSegments.isEmpty()) code = DragCode.open(engine, initial, forward)
+                } else if (composing == false && !candidates.isComposing && candidates.inputText.isEmpty() &&
+                    candidates.preeditText.isEmpty() && service.t9PartialSegments.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        if (current() && service.editorConnection() === ic) {
+                            english = service.candidateState.value.pendingEnglishText
+                            document = DistanceBackspace.open(ic, forward)
+                        }
+                    }
+                }
+                if (document == null && code == null) { invalid = true; return@postRimeJob }
+            }
+            if (count != desired) return@postRimeJob
+            val preedit = code
+            if (preedit != null) {
+                val result = preedit.move(engine, count, ::current) ?: run { invalid = true; return@postRimeJob }
+                withContext(Dispatchers.Main) {
+                    if (current() && service.editorConnection() === ic) {
+                        if (preedit.t9) service.keyboardCallbacks?.onT9RefreshAfterPreeditEdit?.invoke()
+                        service.sessionController.updateUIWithResult(result)
+                    }
+                }
+            } else {
+                val text = document
+                if (text == null || composing != false || service.t9PartialSegments.isNotEmpty()) {
+                    invalid = true; return@postRimeJob
+                }
+                withContext(Dispatchers.Main) {
+                    val cs = service.candidateState.value
+                    if (!current() || cs.isComposing || cs.inputText.isNotEmpty() || cs.preeditText.isNotEmpty() ||
+                        service.editorConnection() !== ic || !text.move(count)) { invalid = true; return@withContext }
+                    // 松手后用撤回手势（同上滑清空后的下滑撤回）放回这次滑掉的字；滑回原处就没有可撤回的。
+                    if (text.hasRemoved) service.lastSwipeDelete = this@ImeDistanceBackspace
+                    else if (service.lastSwipeDelete === this@ImeDistanceBackspace) service.lastSwipeDelete = null
+                    // Text before the caret is untouched: keep prediction, association and English state.
+                    // 键盘自己的输入框不进联想上下文（和在里面上屏一样）。
+                    if (text.forward || internal) return@withContext
+                    service.predictionManager.invalidatePendingPredictions()
+                    service.predictionManager.replaceCommittedText(text.remainingContext)
+                    val pending = english.dropLast(text.removedUnits.coerceAtMost(english.length))
+                    service.candidateState.value = cs.copy(pendingEnglishText = pending.takeIf {
+                        text.remainingContext.endsWith(it) }.orEmpty(), associationCandidates = emptyList(),
+                        deletionRecovery = emptyList(), isShowingRecentClipboard = false, glidedWord = "")
+                }
+            }
+        }
+    }
+
+    /**
+     * 撤回这次左右滑删掉的字，放回原位、光标回到滑之前的位置（别人 11-05 的需求）。
+     * 只在同一个输入框、滑完后没再改过时放回（[DistanceBackspace.move] 自己核对光标和两边的字）。
+     * 在主线程、输入队列里调用，滑动的删字任务都已做完。
+     */
+    fun undo(): Boolean {
+        val text = document ?: return false
+        if (!text.hasRemoved || ic == null || !current() || service.editorConnection() !== ic || !text.move(0)) return false
+        invalid = true
+        if (!text.forward && !internal) {
+            service.predictionManager.invalidatePendingPredictions()
+            service.predictionManager.replaceCommittedText(text.remainingContext)
+        }
+        return true
+    }
+}
+
+/** Keep ambiguous 14-key letters and raw 9-key digits; never replay the displayed pinyin as typed keys. */
+internal class DragCode private constructor(
+    private val original: String, private val caret: Int, private val schema: String, val t9: Boolean,
+    private val forward: Boolean,
+) {
+    private var expected = original
+    private var revision = 0L
+
+    fun move(engine: RimeEngine, count: Int, current: () -> Boolean): RimeProcessResult? {
+        val nextCaret = if (forward) caret else (caret - count).coerceAtLeast(0)
+        val next = if (forward) original.removeRange(caret, (caret + count).coerceAtMost(original.length))
+            else original.removeRange(nextCaret, caret)
+        val result = engine.editPinyinAndReadState {
+            if (revision != 0L && !engine.isCandidateRevisionCurrent(revision)) return@editPinyinAndReadState false
+            if (t9) engine.moveDeleteDragDigits(expected, next, schema, current)
+            else engine.applyPinyinEdit(expected, next, nextCaret, expectedSchema = schema, isStillCurrent = current)
+        } ?: return null
+        expected = result.inputText
+        revision = result.engineRevision
+        return result
+    }
+
+    companion object {
+        fun open(engine: RimeEngine, state: InputUIState, forward: Boolean = false): DragCode? {
+            val (snap, digits) = engine.readDeleteDragInput(state.currentSchemaId) ?: return null
+            val raw = snap.getOrNull(0)?.takeIf { it.isNotEmpty() && it.all { ch -> ch.code in 32..126 } } ?: return null
+            val caret = snap.getOrNull(1)?.toIntOrNull()?.takeIf { it in 0..raw.length } ?: return null
+            // Rebuilding a selected/locked reading would lose information on undo.
+            if (snap.getOrNull(2) != "0" || !snap.getOrNull(3).isNullOrEmpty()) return null
+            val t9 = digits.isNotEmpty()
+            if (!t9 && state.inputProfile.layout.kind == LayoutKind.T9) return null
+            if (t9 && (caret != raw.length || !raw.all { it in '2'..'9' } || digits != raw)) return null
+            // Nine-key digits always end at the caret: nothing after it to delete.
+            if (forward && (t9 || caret == raw.length)) return null
+            return DragCode(raw, caret, state.currentSchemaId, t9, forward)
+        }
+    }
+}

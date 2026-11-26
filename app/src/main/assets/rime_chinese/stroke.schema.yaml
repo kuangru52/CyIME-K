@@ -1,0 +1,113 @@
+# Rime schema settings
+# encoding: utf-8
+#
+# 源自 rime/rime-stroke（LGPL-3.0）1e8fff9b9494ddec23b0cbc526bcfd8171a6fd48 的 stroke.schema.yaml。
+# CyIME 适配：名称用简体；去掉依赖 luna_pinyin 的拼音反查（CyIME 不带 luna_pinyin，笔画键盘也打不出 `）；
+# 候选页数沿用全局设置；* 作通配符代替一笔（lua/cyime_stroke_wildcard.lua）；
+# 没打完的常用字按字频排在生僻字前面（lua/cyime_stroke_rank.lua）；
+# 用分词键隔开、每个字只打头几笔时按词表出词（lua/cyime_stroke_phrase.lua，词表 stroke_phrase 构建时生成）。
+# 码表 stroke.dict.yaml 由 app/build-logic/tasks-stroke.gradle.kts 构建时下载并按常用字频重排。
+
+schema:
+  schema_id: stroke
+  name: "笔画"
+  version: "0.6-cyime4"
+  dependencies:
+    - stroke_phrase
+  author:
+    - 四季的風
+    - 雪齋
+    - Kunki Chou
+    - 宋天
+  description: |
+    五笔画
+    h,s,p,n,z 代表横、竖、撇、捺、折；* 代替任意一笔
+
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中文, 西文 ]
+  - name: full_shape
+    states: [ 半角, 全角 ]
+  - name: ascii_punct
+    states: [ 。，, ．， ]
+
+engine:
+  processors:
+    - ascii_composer
+    - recognizer
+    - key_binder
+    - speller
+    - punctuator
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - ascii_segmentor
+    - matcher
+    - abc_segmentor
+    - punct_segmentor
+    - fallback_segmentor
+  translators:
+    - punct_translator
+    - table_translator
+    - lua_translator@*cyime_stroke_wildcard
+    - lua_translator@*cyime_stroke_phrase
+  filters:
+    # 日文汉字、韩文汉字、粤语字（设置 › 中文输入，默认关）：开关关着时这些字不出（11-20 他：仓颉、注音都要一样），见 lua/cyime_char_lists.lua。
+    - lua_filter@*cyime_char_lists
+    - lua_filter@*cyime_stroke_rank
+
+speller:
+  alphabet: "abcdefghijklmnopqrstuvwxyz*"
+  delimiter: " '"
+  # 分词号也能连着打、打在最后：n 个分词号就是 n+1 个字，没打笔画的段代表任意一个字（11-18）。
+  # 不列进 initials 时，紧跟在分词号后面的分词号不收，Rime 把首选顶上屏。
+  initials: "abcdefghijklmnopqrstuvwxyz*'"
+
+translator:
+  enable_sentence: false
+  dictionary: stroke
+  # 编码和候选后面的剩余笔画默认显示字母 h s p n z（11-18 贡献者：全用字母，不要一半字母一半笔画）。
+  # 设置「笔画编码显示成 一丨丿丶乛」打开时，方案补丁（SpellingPatches）在这里加
+  # xlit/hspnz/⼀⼁⼃⼂乛/（康熙部首，折用键面上的乛，#412），lua 造的候选也跟着换。
+  comment_format:
+    - xform/~//
+
+# 通配符跨两个字时沿用笔画方案的组词，查询器只读，不重复学习上屏文字。
+stroke_word_lookup:
+  dictionary: stroke
+  enable_user_dict: false
+  enable_completion: false
+  enable_sentence: true
+
+punctuator:
+  import_preset: default
+
+key_binder:
+  import_preset: default
+  bindings:
+    # 兼容其他筆畫名稱（捺屬點部、提屬橫部）
+    - { when: always, accept: "d", send: "n" }
+    - { when: always, accept: "t", send: "h" }
+    # 兼容Mac筆畫輸入法按鍵：🅹⼀, 🅺⼁, 🅻⼃, 🆄⼂, 🅸⺂
+    - { when: always, accept: "j", send: "h" }
+    - { when: always, accept: "k", send: "s" }
+    - { when: always, accept: "l", send: "p" }
+    - { when: always, accept: "u", send: "n" }
+    - { when: always, accept: "i", send: "z" }
+    # 兼容Mac筆畫輸入法小鍵盤按鍵：1︎⃣⼀, 2︎⃣⼁, 3︎⃣⼃, 4︎⃣⼂, 5︎⃣⺂
+    - { when: always, accept: "KP_1", send: "h" }
+    - { when: always, accept: "KP_2", send: "s" }
+    - { when: always, accept: "KP_3", send: "p" }
+    - { when: always, accept: "KP_4", send: "n" }
+    - { when: always, accept: "KP_5", send: "z" }
+    # 禁用小鍵盤其他數字按鍵，以防誤觸
+    - { when: has_menu, accept: "KP_6", send: Select }
+    - { when: has_menu, accept: "KP_7", send: Select }
+    - { when: has_menu, accept: "KP_8", send: Select }
+    - { when: has_menu, accept: "KP_9", send: Select }
+    - { when: has_menu, accept: "KP_0", send: Select }
+
+recognizer:
+  import_preset: default

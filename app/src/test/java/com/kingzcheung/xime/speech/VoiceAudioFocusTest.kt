@@ -1,0 +1,225 @@
+package com.kingzcheung.xime.speech
+
+import android.app.Application
+import android.content.Context
+import android.content.ContextWrapper
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import androidx.test.core.app.ApplicationProvider
+import com.kingzcheung.xime.settings.SettingsPreferences
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.mockito.kotlin.*
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import android.os.Looper
+import java.util.concurrent.TimeUnit
+import org.robolectric.annotation.Config
+
+/** 用户 11-04：屏蔽外放音（压低音量 / 暂停播放 / 不屏蔽），默认不屏蔽；关麦恢复。 */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], application = Application::class)
+class VoiceAudioFocusTest {
+    private val app get() = ApplicationProvider.getApplicationContext<Application>()
+    private val audio = mock<AudioManager>()
+    private val context: Context get() = object : ContextWrapper(app) {
+        override fun getSystemService(name: String): Any? = if (name == Context.AUDIO_SERVICE) audio else super.getSystemService(name)
+    }
+
+    @Before fun clear() {
+        SettingsPreferences.getPrefsPublic(app).edit().clear().commit()
+        whenever(audio.isMusicActive).thenReturn(true)
+    }
+
+    private fun focusAnswers(result: Int) =
+        whenever(audio.requestAudioFocus(any<AudioFocusRequest>())).thenReturn(result)
+
+    @Test fun defaultIsOffAndTouchesNothing() {
+        assertEquals(VoiceOtherAudio.OFF, SettingsPreferences.getSttOtherAudio(app))
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        focus.release(owner)
+        verify(audio, never()).requestAudioFocus(any<AudioFocusRequest>())
+        verify(audio, never()).adjustStreamVolume(any(), any(), any())
+        verify(audio, never()).setStreamVolume(any(), any(), any())
+    }
+
+    @Test fun pauseAsksForExclusiveFocusAndGivesItBack() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.PAUSE)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        val request = argumentCaptor<AudioFocusRequest>()
+        verify(audio).requestAudioFocus(request.capture())
+        assertEquals(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE, request.firstValue.focusGain)
+        verify(audio, never()).abandonAudioFocusRequest(any())
+        focus.release(owner)
+        verify(audio).abandonAudioFocusRequest(request.firstValue)
+        focus.release(owner)
+        verify(audio, times(1)).abandonAudioFocusRequest(any())
+        verify(audio, never()).adjustStreamVolume(any(), any(), any())
+        verify(audio, never()).setStreamVolume(any(), any(), any())
+    }
+
+    @Test fun overlappingSessionsRestoreAfterTheLastOne() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.PAUSE)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        val focus = VoiceAudioFocus(context)
+        val old = Any()
+        val new = Any()
+        focus.acquire(old)
+        focus.acquire(new)
+        focus.release(old)
+        verify(audio, times(1)).requestAudioFocus(any<AudioFocusRequest>())
+        verify(audio, never()).abandonAudioFocusRequest(any())
+        focus.release(new)
+        verify(audio, times(1)).abandonAudioFocusRequest(any())
+    }
+
+    @Test fun refusedPauseMutesMediaAndRestoresIt() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.PAUSE)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_FAILED)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        verify(audio).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+        assertTrue(SettingsPreferences.isSttMusicMutedByVoice(app))
+        focus.release(owner)
+        verify(audio).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+        assertFalse(SettingsPreferences.isSttMusicMutedByVoice(app))
+    }
+
+    /** 用户 11-06：靠系统压低（可压低焦点）实测没用，压低音量改为直接调低媒体音量，不再申请焦点。 */
+    @Test fun duckLowersMediaVolumeItselfAndRestoresIt() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.DUCK)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        whenever(audio.getStreamVolume(AudioManager.STREAM_MUSIC)).thenReturn(10)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        verify(audio).setStreamVolume(AudioManager.STREAM_MUSIC, 2, 0)
+        assertEquals(10, SettingsPreferences.getSttMusicVolumeBeforeVoice(app))
+        whenever(audio.getStreamVolume(AudioManager.STREAM_MUSIC)).thenReturn(2)
+        focus.release(owner)
+        verify(audio).setStreamVolume(AudioManager.STREAM_MUSIC, 10, 0)
+        assertEquals(-1, SettingsPreferences.getSttMusicVolumeBeforeVoice(app))
+        verify(audio, never()).requestAudioFocus(any<AudioFocusRequest>())
+        verify(audio, never()).abandonAudioFocusRequest(any())
+        verify(audio, never()).adjustStreamVolume(any(), any(), any())
+    }
+
+    @Test fun duckRestoresWhenTheSystemLandsOnAnotherStep() {
+        // #322：要 2 档，系统换算后落在 3 档；关麦时读到 3 不能当成用户自己调过。
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.DUCK)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        whenever(audio.getStreamVolume(AudioManager.STREAM_MUSIC)).thenReturn(10, 3)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        verify(audio).setStreamVolume(AudioManager.STREAM_MUSIC, 2, 0)
+        focus.release(owner)
+        verify(audio).setStreamVolume(AudioManager.STREAM_MUSIC, 10, 0)
+    }
+
+    @Test fun duckLeavesMutedOrFixedVolumeAlone() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.DUCK)
+        whenever(audio.getStreamVolume(AudioManager.STREAM_MUSIC)).thenReturn(10)
+        whenever(audio.isStreamMute(AudioManager.STREAM_MUSIC)).thenReturn(true)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        focus.release(owner)
+        whenever(audio.isStreamMute(AudioManager.STREAM_MUSIC)).thenReturn(false)
+        whenever(audio.isVolumeFixed).thenReturn(true)
+        focus.acquire(owner)
+        focus.release(owner)
+        verify(audio, never()).setStreamVolume(any(), any(), any())
+    }
+
+    @Test fun volumeTheUserChangedWhileTalkingIsKept() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.DUCK)
+        whenever(audio.getStreamVolume(AudioManager.STREAM_MUSIC)).thenReturn(10)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        whenever(audio.getStreamVolume(AudioManager.STREAM_MUSIC)).thenReturn(6)
+        focus.release(owner)
+        verify(audio, never()).setStreamVolume(AudioManager.STREAM_MUSIC, 10, 0)
+    }
+
+    @Test fun alreadyMutedMediaIsLeftAlone() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.PAUSE)
+        whenever(audio.isStreamMute(AudioManager.STREAM_MUSIC)).thenReturn(true)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_FAILED)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        focus.release(owner)
+        verify(audio, never()).adjustStreamVolume(any(), any(), any())
+        verify(audio, never()).setStreamVolume(any(), any(), any())
+    }
+
+    @Test fun nothingPlayingTouchesNothing() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.PAUSE)
+        whenever(audio.isMusicActive).thenReturn(false)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        focus.release(owner)
+        verify(audio, never()).requestAudioFocus(any<AudioFocusRequest>())
+    }
+
+    @Test fun volumeLeftByAKilledProcessIsRestoredOnNextStart() {
+        SettingsPreferences.setSttMusicMutedByVoice(app, true)
+        SettingsPreferences.setSttMusicVolumeBeforeVoice(app, 9)
+        VoiceAudioFocus(context)
+        verify(audio).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+        verify(audio).setStreamVolume(AudioManager.STREAM_MUSIC, 9, 0)
+        assertFalse(SettingsPreferences.isSttMusicMutedByVoice(app))
+        assertEquals(-1, SettingsPreferences.getSttMusicVolumeBeforeVoice(app))
+    }
+
+    @Test fun unknownStoredValueFallsBackToOff() {
+        SettingsPreferences.getPrefsPublic(app).edit().putString(SettingsPreferences.KEY_STT_OTHER_AUDIO, "x").commit()
+        assertEquals(VoiceOtherAudio.OFF, SettingsPreferences.getSttOtherAudio(app))
+    }
+
+    /** 用户 11-12 转来：开了屏蔽抖音照样出声。给了焦点还在放，就改为临时静音，关麦还原、交还焦点。 */
+    @Test fun playerIgnoringFocusIsMutedInstead() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.PAUSE)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        verify(audio, never()).adjustStreamVolume(any(), any(), any())
+        shadowOf(Looper.getMainLooper()).idleFor(VoiceAudioFocus.IGNORED_FOCUS_CHECK_MS, TimeUnit.MILLISECONDS)
+        verify(audio).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+        assertTrue(SettingsPreferences.isSttMusicMutedByVoice(app))
+        focus.release(owner)
+        verify(audio).abandonAudioFocusRequest(any())
+        verify(audio).adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+        assertFalse(SettingsPreferences.isSttMusicMutedByVoice(app))
+    }
+
+    @Test fun playerThatPausedOrSessionThatEndedIsNotMuted() {
+        SettingsPreferences.setSttOtherAudio(app, VoiceOtherAudio.PAUSE)
+        focusAnswers(AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+        val focus = VoiceAudioFocus(context)
+        val owner = Any()
+        focus.acquire(owner)
+        whenever(audio.isMusicActive).thenReturn(false)
+        shadowOf(Looper.getMainLooper()).idleFor(VoiceAudioFocus.IGNORED_FOCUS_CHECK_MS, TimeUnit.MILLISECONDS)
+        focus.release(owner)
+        // 说得很短：检查之前就关了麦，媒体还在放也不再静音。
+        whenever(audio.isMusicActive).thenReturn(true)
+        focus.acquire(owner)
+        focus.release(owner)
+        shadowOf(Looper.getMainLooper()).idleFor(VoiceAudioFocus.IGNORED_FOCUS_CHECK_MS, TimeUnit.MILLISECONDS)
+        verify(audio, never()).adjustStreamVolume(any(), any(), any())
+    }
+}

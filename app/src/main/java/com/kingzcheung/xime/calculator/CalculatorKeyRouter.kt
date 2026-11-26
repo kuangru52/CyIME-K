@@ -1,0 +1,52 @@
+package com.kingzcheung.xime.calculator
+
+
+/**
+ * 计算器模式按键路由的结果。
+ */
+sealed class CalculatorRouteResult {
+    /** 按键已被计算器路由处理，调用者应跳过后续 Rime 管线 */
+    data class Handled(val commitText: String) : CalculatorRouteResult()
+    /** 按键不由计算器路由处理，调用者应按正常流程继续 */
+    data object NotHandled : CalculatorRouteResult()
+}
+
+/**
+ * 计算器模式按键路由 — 决定按键应由计算器引擎处理还是直接提交。
+ *
+ * 返回 [CalculatorRouteResult.Handled] 表示按键已被路由处理，
+ * 调用者应提交 [commitText] 并跳过后续 Rime 管线。
+ * 返回 [CalculatorRouteResult.NotHandled] 表示调用者应按正常流程继续处理。
+ *
+ * 路由规则：
+ * - CommonSymbol 键盘：所有单字符键直接提交，不经过计算器（符号无计算器支持）
+ * - Number 键盘：数字/运算符/小数点先经计算器引擎，再直接提交（不经过 Rime）；其他字符（如 @、左栏自定义的短语）直接提交并结束算式
+ * - 其他键盘：返回 [NotHandled]
+ */
+fun routeCalculatorKey(
+    key: String,
+    isNumberKeyboard: Boolean,
+    isCommonSymbolKeyboard: Boolean,
+    calculatorEngine: CalculatorEngine,
+): CalculatorRouteResult {
+    if (key.length == 1 && isCommonSymbolKeyboard) {
+        return CalculatorRouteResult.Handled(key)
+    }
+
+    if (isNumberKeyboard) {
+        // × ÷、全角数字和运算符也算（用户 11-13：× 不出计算候选）。
+        if (CalculatorEngine.isCalculatorKey(key)) {
+            if (CalculatorEngine.digitOf(key[0]) != null) {
+                calculatorEngine.handleDigit(key)
+            } else {
+                calculatorEngine.handleOperator(key)
+            }
+        } else {
+            // 数字面板上的 @、点键角标 : 和左栏自定义的符号或短语（可能多个字）都打断算式，后面的数字不能接回前面的算式。
+            calculatorEngine.clear()
+        }
+        return CalculatorRouteResult.Handled(key)
+    }
+
+    return CalculatorRouteResult.NotHandled
+}

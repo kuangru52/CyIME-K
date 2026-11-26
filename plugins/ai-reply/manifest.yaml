@@ -1,0 +1,42 @@
+# =============================================
+# Xime Lua 插件元数据（宿主用 YAML 解析）
+# =============================================
+
+# 插件唯一标识
+id: com.kingzcheung.xime.plugin.ai_reply
+
+# 插件名称与描述
+name: AI 回复
+icon: "应"
+description: 复制对方的消息，再点键盘菜单里的「AI 回复」，给出几条回复，点一条发到输入框。可选讯飞星火 X2 或自己的 OpenAI 兼容接口，密钥只存在手机里。
+
+# 插件版本
+version: 0.9.0
+
+# 插件分类：tool 工具类（多开）
+type: tool
+activation: multi
+
+# 入口脚本
+entry: main.lua
+
+# 宿主最低版本要求（工具栏按钮与工具面板契约）
+minHostVersion: 1.15.37
+
+# 工具栏入口：点击打开该插件的通用面板
+toolbarButtons:
+  - id: com.kingzcheung.xime.plugin.ai_reply:open
+    label: AI 回复
+    action: open_panel
+
+# 网络访问：接受用户自定义服务器地址（baseUrl 域名自动获得联网授权）
+network:
+  allowCustomHosts: true
+
+# 能力声明
+# 能力声明
+capabilities:
+  tool:
+    # passive：宿主渲染全屏纯展示面板（InfoPanel，与表情/符号同级），
+    # ui 节点树承载"生成"入口，items 候选在面板内点选上屏（原 select 全屏结果页已并入）
+    display: passive

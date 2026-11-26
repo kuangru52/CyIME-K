@@ -1,0 +1,158 @@
+// CyIME settings and shared resources of one script translation: the nine-key joint decoder,
+// the 26-key sentence rescoring and CyLM. ScriptTranslation derives from this struct, so the
+// decoder code reads these members by their own names (cmake/T9PhraseBeforeSentence.cmake).
+#ifndef CYIME_T9_SCRIPT_OPTIONS_H_
+#define CYIME_T9_SCRIPT_OPTIONS_H_
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <set>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include <cylm.h>
+#include <rime/common.h>
+#include <rime/dict/vocabulary.h>
+
+class T9NgramModel;
+
+namespace rime {
+
+class Config;
+class Context;
+class Dictionary;
+class Grammar;
+class GramDb;
+
+struct T9ScriptOptions {
+  T9ScriptOptions();
+  ~T9ScriptOptions();
+  // Reads t9/*, cylm/* and the app's context properties; called once per translation.
+  void LoadT9Options(Config* config, Context* context);
+
+  bool t9_joint_ = false;
+  bool t9_sentence_rescore_ = false;
+  bool cylm_long_alternative_ = false;
+  // t9/rescore_keys_per_syllable: double pinyin counts syllables by keys (2) for the rescoring's gate.
+  size_t t9_rescore_keys_per_syllable_ = 0;
+  using T9Readings = std::unordered_map<string, vector<std::pair<string, double>>>;
+  std::shared_ptr<const T9Readings> t9_readings_;
+  bool t9_decoded_cache_ = true;
+  size_t t9_source_budget_ = 128;
+  size_t t9_pool_budget_ = 64;
+  size_t t9_dictionary_beam_ = 16;
+  size_t t9_sentence_beam_ = 24;
+  size_t t9_result_budget_ = 12;
+  size_t t9_display_sentences_ = 0;
+  double t9_spelling_penalty_ = 5.0;
+  double t9_word_penalty_ = 8.0;
+  // t9/tail_completion_weight (ln units, 0 = off): words ending in a syllable the last typed digits only begin.
+  double t9_tail_completion_weight_ = 0;
+  size_t t9_whole_input_phrases_ = 0;
+  bool t9_prefer_user_entries_ = false;
+  double t9_correction_penalty_ = -4.605170185988091;  // log(0.01): Rime's corrected-syllable credibility
+  double t9_sentence_weight_ = 0.25;
+  string t9_sentence_model_;
+  GramDb* t9_gram_db_ = nullptr;
+  the<Grammar> t9_grammar_;
+  std::shared_ptr<const T9NgramModel> t9_ngram_;
+  double t9_ngram_user_weight_ = 0.05;
+  // t9/ngram_user_input_weight: share of recent picks among the spelled-out words that cover the whole input.
+  double t9_ngram_user_input_weight_ = 0;
+  double t9_ngram_dictionary_prior_ = 0;
+  bool t9_ngram_sentence_start_ = false;
+  double t9_ngram_eos_weight_ = 0;
+  // Sentence-final particles (t9/final_particles: 吗, 呢, 吧…) and t9/particle_eos_weight: when one of
+  // the first whole-input sentences ends with such a particle, every finished sentence is ordered with
+  // that weight of ln P(</s> | last words), so 我们吗 beats 我们那 and 礼貌吗 beats 礼貌嘛 at the end of
+  // input, while input that cannot end in a particle keeps t9/ngram_eos_weight.
+  std::shared_ptr<const std::set<string>> t9_final_particles_;
+  double t9_particle_eos_weight_ = 0;
+  bool t9_particle_bigram_after_start_ = false;
+  double t9_particle_alternative_margin_ = 0;
+  // t9/single_key_initial_margin (ln units): when one key alone (2–9) decodes to a complete vowel (额, 啊, 哦)
+  // first, a character it starts as an initial (的 for 3) comes first instead if its corpus frequency is at
+  // least that much higher; the vowel stays second. 0 keeps the decoder order.
+  double t9_single_key_initial_margin_ = 0;
+  // t9/ngram_typo_bigrams ("觉 的"): word pairs whose corpus count is mostly a misspelling (觉的 for 觉得).
+  // The pair is scored as if never seen, from the second word's lower-order probability.
+  std::shared_ptr<const std::vector<std::pair<int32_t, int32_t>>> t9_ngram_typo_bigrams_;  // T9NgramModel::Pairs
+  // 14-key: see T9PreferMergedTailWord (t9_sentence_rescore.h); 0 keeps the typed letters' sentence first.
+  double t9_merged_tail_word_margin_ = 0;
+  // t9/rescore_rime_weight: how much Rime's own sentence weight counts next to the word model when the
+  // 26-key rescoring picks a sentence (0: the word model alone, as before).
+  double t9_rescore_rime_weight_ = 0;
+  // t9/tail_correction_margin: see T9RescoreSentences; 0 keeps a slip in the last syllable behind the typed reading.
+  double t9_tail_correction_margin_ = 0;
+  // t9/slip_correction_margin: see T9RescoreSentences; 0 keeps a typed reading that reads in full before every
+  // corrected sentence.
+  double t9_slip_correction_margin_ = 0;
+  // t9/slip_whole_words (14 keys): the best corrected dictionary word for all the keys joins the sentences, so the
+  // slip rule above weighs it against the typed choice too (TAUDAJE: 太大了 against 太大可). See ScriptTranslation.
+  bool t9_slip_whole_words_ = false;
+  // t9/initials_choices: for input typed as initials only, how many leading candidates are chosen by the same
+  // computed score as full sentences (word model + rescore_rime_weight of Rime's weight). 0: dictionary order.
+  int t9_initials_choices_ = 0;
+  // t9/initials_lead_margin (ln units): see T9RescoreSentences; how much higher a score must be to take the first
+  // place from the dictionary's first word with these initials.
+  double t9_initials_lead_margin_ = 0.0;
+  // t9/near_homophone_penalty (ln units): what a sentence pays for each word that is only the second dictionary
+  // word of its letters (translator/sentence_near_homophone_margin lets those in). See T9RescoreSentences.
+  double t9_near_homophone_penalty_ = 0.0;
+  // t9/menu_sentences (26 keys, t9/sentence_rescore): how many whole sentences lead the menu, in the order of the
+  // computed score. 1: the chosen one alone, as before.
+  int t9_menu_sentences_ = 1;
+  // t9/menu_sentence_margin (ln units): a sentence that lost is listed only when its score is within this of the
+  // best one (0: no limit). Keeps out the readings nobody means (尼上课了嘛 under 你上课了嘛).
+  double t9_menu_sentence_margin_ = 0.0;
+  // t9/menu_prefixes: after the whole sentences, the first sentence cut at its word boundaries, longest first, at
+  // most this many (0: none, as before). Picking one keeps the words that were right; the rest is made again.
+  int t9_menu_prefixes_ = 0;
+  // t9/model_sentences (letters with t9/sentence_rescore; 2026-11-23): Rime's n-best is made from the first
+  // dictionary word of every span, so the sentence the word model would choose is often not among it. With this many
+  // (> 0) the joint decoder also builds sentences with the word model, and those typed out in full are compared with
+  // the typed choice (T9RescoreSentences, `built`). 0: none, as before. The decoder reads its own t9/* settings
+  // (source_budget … ngram_dictionary_prior, reading_table); t9/joint_decoder stays false.
+  int t9_model_sentences_ = 0;
+  // t9/model_sentences_on_pause: the decoder's run costs as much as the whole key (14 keys: every tenth key took
+  // 16 ms instead of 7), so with this on it runs only in the refresh after a pause (RefineOmission sets
+  // T9SetRefiningSentences, as the nine-key refinement does) and no key waits for it.
+  bool t9_model_sentences_on_pause_ = false;
+  // t9/model_sentences_rime_weight: a sentence built with the word model is made of more and shorter words than
+  // the typed choice, and on the word model alone it leads too often where t9/rescore_rime_weight is 0 (14 keys): a
+  // word the dictionary holds and the model does not know loses to common words of the same keys. When a built
+  // sentence is compared with the typed choice, this share of Rime's own sentence weight is added on both sides. The
+  // choice among the typed sentences does not use it.
+  double t9_model_sentences_rime_weight_ = 0.0;
+  // t9/final_g_word_margin (ln units): a dictionary word that reads the whole input with the final g added
+  // (translator/cyime_final_g_correction; yianzhuan: 已安装) leads the sentence of the typed letters (一按转) when the
+  // word model finds its text more likely by more than this; 0 keeps the typed sentence first. Uses
+  // T9PreferMergedTailWord.
+  double t9_final_g_word_margin_ = 0;
+  bool t9_ngram_merge_segmentations_ = false;
+  string t9_left_context_;
+  string t9_neighbors_;
+  size_t t9_more_sentences_min_keys_ = 0;
+  bool t9_cache_with_correction_ = false;
+  std::shared_ptr<CylmModel> t9_cylm_;
+
+  // Resource paths resolved once per type and name. Resolving stats files in the user and shared
+  // data directories, and the translation reading this config is rebuilt on every key. A model
+  // installed later already needs a restart (T9NgramModel::Open remembers missing files too).
+  static string T9ResolveOnce(const char* type_name, const char* suffix, const string& name);
+  // Loaded once per file and kept: a translation (and this member) is rebuilt on every key, so a
+  // weak cache reread the file per key. Lines are text<TAB>spelling<TAB>ln share.
+  static std::shared_ptr<const T9Readings> T9LoadReadings(const string& path);
+  // Syllable text -> id of a dictionary's syllabary (CyLM returns pinyin as text), built once per dictionary.
+  static const std::unordered_map<string, SyllableId>& T9SyllableIds(Dictionary* dict);
+  // One CyLM model per set of files for the process (memory-mapped); a failed open is remembered too.
+  static std::shared_ptr<CylmModel> T9CylmOpen(const string& lexicon, const string& model, const string& model2,
+                                               const string& reranker, const string& vocab, const string& params,
+                                               const string& prefer, const string& adapt);
+};
+
+}  // namespace rime
+
+#endif  // CYIME_T9_SCRIPT_OPTIONS_H_

@@ -1,0 +1,259 @@
+package com.kingzcheung.xime.ui.settings
+
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.twotone.ContentPaste
+import androidx.compose.material.icons.twotone.Download
+import androidx.compose.material.icons.twotone.Person
+import androidx.compose.material.icons.twotone.Upload
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import com.kingzcheung.xime.ui.i18n.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.kingzcheung.xime.settings.BackupManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * 备份与恢复：把设置导出为本地 zip，或从 zip 恢复。
+ *
+ * 文件位置完全由系统文件选择器决定，备份包不上传、不发送到其他地方。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BackupSettingsContent(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // 和其他开关一样记住选择（以前只存在页面状态里，退出再进来就变回关）。
+    var includePersonal by remember { mutableStateOf(BackupChoices.includePersonal(context)) }
+    var includeClipboardHistory by remember { mutableStateOf(BackupChoices.includeClipboardHistory(context)) }
+    // 当前操作（"export"/"import"）：loading 只出现在触发它的按钮上，其余按钮仅禁用
+    var busyOp by remember { mutableStateOf<String?>(null) }
+    val busy = busyOp != null
+    var message by remember { mutableStateOf<String?>(null) }
+    var pendingImport by remember { mutableStateOf<ByteArray?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busyOp = "export"
+        message = null
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { BackupManager.exportTo(context, uri, includePersonal, includeClipboardHistory) }
+            busyOp = null
+            message = result.fold(
+                onSuccess = { "备份已导出" + if (includePersonal) "(含个人词库与学习数据)" else "" },
+                onFailure = { "导出失败：${it.message ?: "未知错误"}" }
+            )
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busyOp = "import"
+        message = null
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { BackupManager.readBackup(context, uri) }
+            busyOp = null
+            result.fold(
+                onSuccess = { pendingImport = it },
+                onFailure = { message = "无法导入：${it.message ?: "未知错误"}" }
+            )
+        }
+    }
+
+    pendingImport?.let { bytes ->
+        AlertDialog(
+            onDismissRequest = { pendingImport = null },
+            title = { Text("从备份恢复") },
+            text = { Text("备份里的设置和词库会覆盖现在的，剪贴板记录会合并。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingImport = null
+                    busyOp = "import"
+                    message = null
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) { BackupManager.importBackup(context, bytes) }
+                        busyOp = null
+                        message = result.fold(
+                            onSuccess = { "恢复完成，设置已生效" },
+                            onFailure = { "恢复失败：${it.message ?: "未知错误"}" }
+                        )
+                    }
+                }) { Text("覆盖并恢复") }
+            },
+            dismissButton = { TextButton(onClick = { pendingImport = null }) { Text("取消") } }
+        )
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = {
+            TopAppBar(
+                title = { Text("备份与恢复") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                ),
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .settingsVerticalScroll(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            SettingsSection(
+                title = "备份内容",
+                content = {
+                    SettingsToggleItem(
+                        icon = Icons.TwoTone.Person,
+                        title = "包含个人词库与学习数据",
+                        subtitle = "自造词、词频和个人词库，属于隐私数据",
+                        checked = includePersonal,
+                        onCheckedChange = { includePersonal = it; BackupChoices.setIncludePersonal(context, it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.TwoTone.ContentPaste,
+                        title = "包含剪贴板历史",
+                        subtitle = "没固定的剪贴板记录也备份",
+                        checked = includeClipboardHistory,
+                        onCheckedChange = { includeClipboardHistory = it; BackupChoices.setIncludeClipboardHistory(context, it) }
+                    )
+                    Text(
+                        text = "总会备份设置、主题、布局和固定的剪贴板记录；不含插件、模型、剪贴板图片和密码。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    )
+                }
+            )
+
+            SettingsSection(
+                title = "操作",
+                content = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val date = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                    exportLauncher.launch("CyIME备份-$date.zip")
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = !busy
+                            ) {
+                                BusyIcon(busyOp == "export") {
+                                    Icon(Icons.TwoTone.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                                Text("导出备份", modifier = Modifier.padding(start = 6.dp))
+                            }
+                            OutlinedButton(
+                                // 不按类型过滤：别处传来的 zip 可能被标成 application/x-zip-compressed 等别的类型，
+                                // 在选择器里会变灰选不了；是不是 CyIME 备份由 readBackup 看内容判断。
+                                onClick = { importLauncher.launch(arrayOf("*/*")) },
+                                modifier = Modifier.weight(1f),
+                                enabled = !busy
+                            ) {
+                                BusyIcon(busyOp == "import") {
+                                    Icon(Icons.TwoTone.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                }
+                                Text("从备份恢复", modifier = Modifier.padding(start = 6.dp))
+                            }
+                        }
+                        Text(
+                            text = "备份只存到你选的位置，不会上传。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        message?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BusyIcon(busy: Boolean, icon: @Composable () -> Unit) {
+    if (busy) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) else icon()
+}
+
+/** 备份页记住的选项。 */
+internal object BackupChoices {
+    const val KEY_INCLUDE_PERSONAL = "backup_include_personal"
+    fun includePersonal(context: android.content.Context): Boolean =
+        com.kingzcheung.xime.settings.SettingsPreferences.getPrefsPublic(context).getBoolean(KEY_INCLUDE_PERSONAL, false)
+    fun setIncludePersonal(context: android.content.Context, include: Boolean) {
+        com.kingzcheung.xime.settings.SettingsPreferences.getPrefsPublic(context).edit()
+            .putBoolean(KEY_INCLUDE_PERSONAL, include).apply()
+    }
+
+    /** 「包含剪贴板历史」，默认关（用户 11-11 转述）；固定和分组的记录不看它，总会备份。 */
+    const val KEY_INCLUDE_CLIPBOARD_HISTORY = "backup_include_clipboard_history"
+    fun includeClipboardHistory(context: android.content.Context): Boolean =
+        com.kingzcheung.xime.settings.SettingsPreferences.getPrefsPublic(context).getBoolean(KEY_INCLUDE_CLIPBOARD_HISTORY, false)
+    fun setIncludeClipboardHistory(context: android.content.Context, include: Boolean) {
+        com.kingzcheung.xime.settings.SettingsPreferences.getPrefsPublic(context).edit()
+            .putBoolean(KEY_INCLUDE_CLIPBOARD_HISTORY, include).apply()
+    }
+}

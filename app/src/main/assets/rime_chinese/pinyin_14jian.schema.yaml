@@ -1,0 +1,339 @@
+# Rime schema
+# 小写编码为精确字母，大写代表合并键；逐位派生支持点击与滑动混合输入。
+cyime_particle_shortcuts:
+  __include: cyime_particle_shortcuts:/common
+  alphabet: ABCDEDGGUJJlmBOOQEATUCQZTZ
+
+schema:
+  schema_id: pinyin_14jian
+  name: 中文14键
+  version: "1.2"
+  dependencies:
+    - cyime_k14_english
+    - cyime_pause_14jian
+  description: |
+    拼音 14 键方案，字母两两合并（qw/er/ty/ui/op、as/df/gh/jk/l、zx/cv/bn/m），
+    键宽更大误触更少，与九键同为词库消歧。
+
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中文, 西文 ]
+  - name: full_shape
+    states: [ 半角, 全角 ]
+  - name: ascii_punct
+    reset: 0
+    states: [ 。，, ．， ]
+  - name: traditionalization
+    states: [ 简, 繁 ]
+  - name: emoji
+    reset: 0
+    states: [ 无表情, 表情 ]
+
+engine:
+  processors:
+    - ascii_composer
+    - recognizer
+    - key_binder
+    - speller
+    - punctuator
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - ascii_segmentor
+    - matcher
+    - abc_segmentor
+    - punct_segmentor
+    - fallback_segmentor
+  translators:
+    - punct_translator
+    - script_translator
+    # 生僻字（设置「生僻字」，默认关；关着时只看一下开关就返回），见 lua/cyime_rare_chars.lua。
+    - lua_translator@*cyime_rare_chars
+    - reverse_lookup_translator
+    - t9_english_translator@k14_english
+    - lua_translator@*uuid
+  # 与 26 键、九键同一套候选规则：长按删掉的候选不再出现、同字候选去重（cyime_candidate_policy），再去重一次。
+  filters:
+    - cyime_candidate_policy
+    # 时间、日期、星期后面接当前时间和日期（设置 › 语言与方案 › 中文输出，默认关）。
+    - cyime_datetime
+    - simplifier@emoji
+    # 打符号名出符号（设置 › 语言与方案 › 中文输出，默认关）：加号后面多出 +。
+    - simplifier@cyime_symbols
+    # 打希腊字母名出希腊字母（设置 › 语言与方案 › 中文输出，默认关）：xita 第 3 个候选是 θ Θ，见 lua/cyime_greek_letters.lua。
+    - lua_filter@*cyime_greek_letters
+    - simplifier@traditionalize
+    # 我的短语里写的「余」照写的出（余宛如），见 traditionalize_user。
+    - simplifier@traditionalize_user
+    - uniquifier
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcbaQETUOADGJZCB
+  delimiter: " '"
+  algebra:
+    # 词库里的单个大写字母音节（A–Z，供 26 键直接打出字母）与合并键的大写编码同形，
+    # 会被当成完整拼写，使同一输入里的简拼全部被剪掉（zdky 只出 ZDJT）。14 键用不到它们。
+    - erase/^[A-Z]$/
+    # 简拼与容错规则（与 pinyin_simp 一致）
+    - abbrev/^([a-z]).+$/$1/
+    - abbrev/^([zcs]h).+$/$1/
+    - derive/^([nl])ue$/$1ve/
+    # 不派生 ju/qu/xu/yu 的 v 写法：14 键上 v 和 c 同键，QC 会被读成“去”，C 就当不了声母（JQC 出不来讲清楚）。
+    - derive/un$/uen/
+    - derive/ui$/uei/
+    - derive/iu$/iou/
+    - derive/([aeiou])ng$/$1gn/
+    - derive/([dtngkhrzcs])o(u|ng)$/$1o/
+    - derive/ong$/on/
+    - derive/ao$/oa/
+    - derive/([iu])a(o|ng?)$/a$1$2/
+    # 每一位可独立为精确字母或合并键，不将精确字母重新映射成歧义编码。
+    - derive/^(.{0})[qw](.*)$/$1Q$2/
+    - derive/^(.{0})[er](.*)$/$1E$2/
+    - derive/^(.{0})[ty](.*)$/$1T$2/
+    - derive/^(.{0})[ui](.*)$/$1U$2/
+    - derive/^(.{0})[op](.*)$/$1O$2/
+    - derive/^(.{0})[as](.*)$/$1A$2/
+    - derive/^(.{0})[df](.*)$/$1D$2/
+    - derive/^(.{0})[gh](.*)$/$1G$2/
+    - derive/^(.{0})[jk](.*)$/$1J$2/
+    - derive/^(.{0})[zx](.*)$/$1Z$2/
+    - derive/^(.{0})[cv](.*)$/$1C$2/
+    - derive/^(.{0})[bn](.*)$/$1B$2/
+    - derive/^(.{1})[qw](.*)$/$1Q$2/
+    - derive/^(.{1})[er](.*)$/$1E$2/
+    - derive/^(.{1})[ty](.*)$/$1T$2/
+    - derive/^(.{1})[ui](.*)$/$1U$2/
+    - derive/^(.{1})[op](.*)$/$1O$2/
+    - derive/^(.{1})[as](.*)$/$1A$2/
+    - derive/^(.{1})[df](.*)$/$1D$2/
+    - derive/^(.{1})[gh](.*)$/$1G$2/
+    - derive/^(.{1})[jk](.*)$/$1J$2/
+    - derive/^(.{1})[zx](.*)$/$1Z$2/
+    - derive/^(.{1})[cv](.*)$/$1C$2/
+    - derive/^(.{1})[bn](.*)$/$1B$2/
+    - derive/^(.{2})[qw](.*)$/$1Q$2/
+    - derive/^(.{2})[er](.*)$/$1E$2/
+    - derive/^(.{2})[ty](.*)$/$1T$2/
+    - derive/^(.{2})[ui](.*)$/$1U$2/
+    - derive/^(.{2})[op](.*)$/$1O$2/
+    - derive/^(.{2})[as](.*)$/$1A$2/
+    - derive/^(.{2})[df](.*)$/$1D$2/
+    - derive/^(.{2})[gh](.*)$/$1G$2/
+    - derive/^(.{2})[jk](.*)$/$1J$2/
+    - derive/^(.{2})[zx](.*)$/$1Z$2/
+    - derive/^(.{2})[cv](.*)$/$1C$2/
+    - derive/^(.{2})[bn](.*)$/$1B$2/
+    - derive/^(.{3})[qw](.*)$/$1Q$2/
+    - derive/^(.{3})[er](.*)$/$1E$2/
+    - derive/^(.{3})[ty](.*)$/$1T$2/
+    - derive/^(.{3})[ui](.*)$/$1U$2/
+    - derive/^(.{3})[op](.*)$/$1O$2/
+    - derive/^(.{3})[as](.*)$/$1A$2/
+    - derive/^(.{3})[df](.*)$/$1D$2/
+    - derive/^(.{3})[gh](.*)$/$1G$2/
+    - derive/^(.{3})[jk](.*)$/$1J$2/
+    - derive/^(.{3})[zx](.*)$/$1Z$2/
+    - derive/^(.{3})[cv](.*)$/$1C$2/
+    - derive/^(.{3})[bn](.*)$/$1B$2/
+    - derive/^(.{4})[qw](.*)$/$1Q$2/
+    - derive/^(.{4})[er](.*)$/$1E$2/
+    - derive/^(.{4})[ty](.*)$/$1T$2/
+    - derive/^(.{4})[ui](.*)$/$1U$2/
+    - derive/^(.{4})[op](.*)$/$1O$2/
+    - derive/^(.{4})[as](.*)$/$1A$2/
+    - derive/^(.{4})[df](.*)$/$1D$2/
+    - derive/^(.{4})[gh](.*)$/$1G$2/
+    - derive/^(.{4})[jk](.*)$/$1J$2/
+    - derive/^(.{4})[zx](.*)$/$1Z$2/
+    - derive/^(.{4})[cv](.*)$/$1C$2/
+    - derive/^(.{4})[bn](.*)$/$1B$2/
+    - derive/^(.{5})[qw](.*)$/$1Q$2/
+    - derive/^(.{5})[er](.*)$/$1E$2/
+    - derive/^(.{5})[ty](.*)$/$1T$2/
+    - derive/^(.{5})[ui](.*)$/$1U$2/
+    - derive/^(.{5})[op](.*)$/$1O$2/
+    - derive/^(.{5})[as](.*)$/$1A$2/
+    - derive/^(.{5})[df](.*)$/$1D$2/
+    - derive/^(.{5})[gh](.*)$/$1G$2/
+    - derive/^(.{5})[jk](.*)$/$1J$2/
+    - derive/^(.{5})[zx](.*)$/$1Z$2/
+    - derive/^(.{5})[cv](.*)$/$1C$2/
+    - derive/^(.{5})[bn](.*)$/$1B$2/
+    - derive/^(.{6})[qw](.*)$/$1Q$2/
+    - derive/^(.{6})[er](.*)$/$1E$2/
+    - derive/^(.{6})[ty](.*)$/$1T$2/
+    - derive/^(.{6})[ui](.*)$/$1U$2/
+    - derive/^(.{6})[op](.*)$/$1O$2/
+    - derive/^(.{6})[as](.*)$/$1A$2/
+    - derive/^(.{6})[df](.*)$/$1D$2/
+    - derive/^(.{6})[gh](.*)$/$1G$2/
+    - derive/^(.{6})[jk](.*)$/$1J$2/
+    - derive/^(.{6})[zx](.*)$/$1Z$2/
+    - derive/^(.{6})[cv](.*)$/$1C$2/
+    - derive/^(.{6})[bn](.*)$/$1B$2/
+
+translator:
+  prefer_sentence_prefix: true
+  dictionary: rime_ice
+  prism: pinyin_14jian
+  # 邻键纠错（2026-11-22「太大了打成太大可，纠错没有纠错能力」）：按偏到旁边的键（l 打成 jk）和 26 键一样当场纠，
+  # 纠出的整句按 26 键的规则排（多半在第二位）。14 键没有量出来的键位，用固定的键位表：同一排左右相邻、
+  # 第一二排上下相邻（第三排和第二排错开，不算）。「邻键纠错」关着时 App 设 _cyime_merged_neighbor_off，不纠。
+  enable_correction: true
+  cyime_neighbor_correction: true
+  cyime_merged_key_neighbors: "Q:EA;E:QTD;T:EUG;U:TOJ;O:Ul;A:DQ;D:AGE;G:DJT;J:GlU;l:JO;Z:C;C:ZB;B:Cm;m:B"
+  # 整句规则同 26 键（tasks-chinese.gradle.kts 由 app/data/sentence_final_particles.txt、sentence_measure_words.txt
+  # 生成的那几行）：每个音节留 4 个单字同音备选，合并键读音多时“已”这类字才进得了整句（woyijiancha 出 我已检查）；
+  # 语气词、量词不当句首，把/被不当句末。
+  sentence_char_homophones: 4
+  sentence_position_penalty: -2.0
+  sentence_position_final_only: [吧, 呗, 呢, 吗, 啊, 嘛, 啦, 呀, 哦, 咯, 哟, 哇, 嘞, 喽, 个, 只, 条, 张, 件, 位, 块]
+  sentence_position_initial_only: [把, 被]
+  # 四条整句备选，由词组模型挑最自然的一条放第一（菜单仍只显示一条），同 26 键（t9/sentence_rescore）。
+  max_sentences: 4
+  sentence_cutoff_threshold: 100
+  packs:
+    - user_simp
+  spelling_hints: 8
+  preedit_format:
+    - xlit/QETUOADGJZCB/qetuoadgjzcb/
+    - xform/([nl])v/$1ü/
+    - xform/([nl])ue/$1üe/
+    - xform/([jqxy])v/$1u/
+
+reverse_lookup:
+  dictionary: stroke
+  enable_completion: true
+  prefix: "`"
+  suffix: "'"
+  tips: 〔笔画〕
+  preedit_format:
+    - xlit/hspnz/一丨丿丶乙/
+
+# 生僻字按本方案的拼写规则算出每个读音的精确字母编码，合并键逐位换成键上的字母再查（AU 补 ai、si、su）。
+cyime_rare_merged_keys: true
+
+menu:
+  page_size: 5
+
+punctuator:
+  import_preset: default
+  __include: cyime_punctuator:/punctuator
+
+key_binder:
+  import_preset: default
+
+recognizer:
+  import_preset: default
+  patterns:
+    punct: "^/([0-9]+[a-z]*|[a-z]+)$"
+    reverse_lookup: "`[a-z]*'?$"
+
+# 词组模型给 Rime 的四条整句重新打分（同 26 键；2026-10-20 电脑回归：整句首选 调参 LCCC 299→365、SMS 324→387，
+# 各列不变差，逐键 p95 约 +1.5%）。没有 t9_ngram.lm 时照原样只出一条。14 键不传前文，第一个词不按句首算。
+t9:
+  # 按偏一个键（太大了 打成 TAUDAJE 太大可、太低了 打成 TAUDUJE 态度可，后者差一点）：纠出的整词和整句也拿来和原样的整句一起
+  # 让词组模型比，词组模型认为纠出的常见 e^7 倍以上（每纠一个音节算一次）才排第一，原样的退第二。打的键本身拼得
+  # 出词时不造句，不纠；英文和专名照样第一（CTUmE 仍是 CyIME）。2026-11-22 门槛扫过 5～9，回归数字见 k14-correct-1122。
+  slip_correction_margin: 7.0
+  slip_whole_words: true
+  sentence_rescore: true
+  ngram_model: t9_ngram
+  ngram_sentence_start: false
+  # 最后一个合并键按声母读出的整词（DOUA 的 A 读 s：都是）平时排在按字母拼出的整句（都啊）后面；词组模型认为它
+  # 常见 20 倍以上（ln 20 ≈ 3）时排第一，整句退第二。2026-11-02「啊的权重太高」：都是、就是、我也是 排第一；
+  # 真的啊、好啊、对啊、智商啊 不变。常用词 + A 键 2000 条里 179 条首选换成整词，原来的「X啊」都在第二位。
+  merged_tail_word_margin: 3.0
+  # 停一下后再比一次整句（2026-11-23）：打字途中的整句是 Rime 按词库权重拼的，每一段拼音只用词库里排第一的那个词，
+  # 词组模型只能在这几句里挑，它自己会选的那句常常根本不在里面（JUABOABDEGAODUJETUZUJUTUAO 只有 键盘的高度课题组几条，
+  # 拼不出 键盘的高度可以自己调）。停手后让词组模型自己再拼最多 model_sentences 句，和打字途中的首选比，赢了才排第一，
+  # 原来的首选退到第二。只在停顿后算一次（model_sentences_on_pause），打字途中每个键的候选和耗时都不变。
+  # 只收每个音节都按键拼全的句子；简拼、纠错、「啊」那几条各走各的老路。
+  # model_sentences_rime_weight：这一步比的时候词库权重占的份量（只用在这一步，打字途中 14 键照旧不看词库权重）。
+  # 不加时词库里有、词组模型不认识的新词容易被同键的常见词顶掉；值同 26 键的 rescore_rime_weight。
+  # 云端 2026-11-23（1.15.105 的引擎和词库）：旧 2000 句首选对 66.6% → 73.8%（修好 162 句、改坏 22 句；不加这个权重是
+  # 修好 180、改坏 37），新测试句 343 句 48.7% → 54.8%，必过 19 条不变；停顿那一步云端中位多 7 毫秒。
+  # joint_requires_ngram 到 reading_table 是拼句用的设置，值同 26 键 t9 段里的同名项。
+  model_sentences: 4
+  model_sentences_on_pause: true
+  model_sentences_rime_weight: 0.15
+  joint_requires_ngram: true
+  source_budget: 16
+  pool_budget: 16
+  dictionary_beam: 64
+  sentence_beam: 8
+  result_budget: 12
+  spelling_penalty: 0
+  word_penalty: 8.0
+  whole_input_phrases: 16
+  prefer_user_entries: true
+  ngram_user_weight: 0.3
+  ngram_dictionary_prior: 0.02
+  reading_table: cyime_readings
+
+# 停一下后的纠错（2026-11-20，原来 14 键完全没有纠错）：同一个音节里少按一个键、一个键多按一下、两个键打反。
+# 纠错索引 cyime_pause_14jian 由 tasks-chinese.gradle.kts 生成（只按合并键拼写）；只在停顿后查一次，打字途中不增加耗时。
+# 词组模型认为纠出的说法比现在首选常见 e^margin 倍以上才给（同双拼停顿纠错的 3.0）；max_keys 以上的长输入不查。
+# 打分不按句首算（同上面 ngram_sentence_start）。
+# letters：一个键一个字母，把纠出读音按合并键拼出来和打的键比，认出是漏键、多键还是打反，
+# 各跟「拼音纠错」里漏键、多键、顺序三个开关（同双拼）。
+# swap_margin：多键、打反的门槛。3.0 时 AGUGUO（试过）不出「时候」（两者只差 1.6）；改成 1.5 能出，
+# 但 2000 个打对的常用词里会多 18 个在第 3 位多出一个词（2026-11-20 云端用正式词库和词组模型量）。
+# word_margin：首选是照打拼全的一个词时，漏键纠出的词在词库里的权重要高出 e^word_margin 倍
+# （新栽 8 → 现在 2821291 能出；语言键 5000 → 医院见 135 不出）。
+cyime_omission_schema: cyime_pause_14jian
+cyime_pause_correction:
+  margin: 3.0
+  swap_margin: 3.0
+  word_margin: 3.0
+  max_keys: 24
+  letters: true
+
+# 英文词（同九键英文词表，按 14 键合并键编码）：整词排在中文后，按到第 4 个键起再给出最多 3 个开头相符的词。
+# 中英混合词（B站、T恤）也在这张表里。选过的词和九键一样按用户词频学习（2026-11-08 以前 14 键英文不学习）。
+k14_english:
+  dictionary: cyime_k14_english
+  enable_completion: false
+  enable_sentence: false
+  enable_user_dict: true
+  initial_quality: -1
+  # 四个键以上的整词和中英混合词（B站）：这里给的分高于单字，保证进入候选规则（cyime_candidate_policy）排的前 64 个，
+  # 再由它放到所有拼全了的中文候选后面，最早第 6 位。选过的词照常按用户词频往前排。2026-11-08 以前排在全部中文后面
+  # （九键 shit 第 87、14 键 B站 第 118），等于打不出来。三个键以下的纯英文词不变。
+  exact_quality: 1.01
+  comment_format: []
+  completion_limit: 3
+  completion_keys: "QETUOADGJZCBlm"
+
+# 简/繁（设置 → 语言与方案 → 繁体输出）：与 26 键同一张台湾正体转换表，见 opencc/cyime_s2tw.json。
+# 候选里显示表情（设置 › 语言与方案 › 中文输出，默认关）：打「开心」在词后面多出 😄。
+# 表情表与 26 键雾凇方案共用 opencc/emoji.json；输入法按键前按设置写 emoji 选项（ImeKeyRouter）。
+emoji:
+  option_name: emoji
+  opencc_config: emoji.json
+  inherit_comment: false
+
+# 打符号名出符号（默认关）：打「加号」「问号」「括号」时词后面多出 +、？ ?、（） ()；词本身位置不变。
+# 表与 26 键共用 opencc/cyime_symbols.json；输入法按键前按设置写 cyime_symbol_names 选项（ImeKeyRouter）。
+cyime_symbols:
+  option_name: cyime_symbol_names
+  opencc_config: cyime_symbols.json
+  inherit_comment: false
+
+traditionalize:
+  option_name: traditionalization
+  opencc_config: cyime_s2tw.json
+  tips: none
+  # 短语（user_table）交给 traditionalize_user。
+  excluded_types: [user_table]
+
+# 我的短语按 cyime_s2tw_user.json 转：没有词组管着的「余」照写的出（姓余，用户 11-12），别的字照常转。
+# 其他候选上面已经转过（simplified），不再转。
+traditionalize_user:
+  option_name: traditionalization
+  opencc_config: cyime_s2tw_user.json
+  tips: none
+  excluded_types: [simplified]

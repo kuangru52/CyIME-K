@@ -1,0 +1,520 @@
+package com.kingzcheung.xime.clipboard
+
+import android.Manifest
+import android.content.ContentUris
+import android.content.Context
+import android.content.pm.PackageManager
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.security.MessageDigest
+import java.util.UUID
+import com.kingzcheung.xime.platform.AndroidPlatform
+
+/**
+ * [source] is where a cached copy was read from (another app's clip, a screenshot); [sha256] is its
+ * content hash. Both only exist on copies in history and are what dedup compares, not the URI.
+ */
+data class ClipboardImage(val uri: String, val mimeType: String, val timestamp: Long, val label: String = "图片",
+    val source: String? = null, val sha256: String? = null)
+data class ImagePasteFailure(val image: ClipboardImage, val packageName: String)
+
+/** One atomic render snapshot: a source toggle and its refreshed items arrive together. */
+data class ClipboardImageBoardSnapshot(
+    val images: List<ClipboardImage> = emptyList(),
+    val screenshotsEnabled: Boolean = false,
+    val galleryPhotosEnabled: Boolean = false,
+)
+
+/** Copied images stay local; the optional gallery feed contains screenshots, and the newest few photos only when asked. */
+class ClipboardImages private constructor(private val context: Context) {
+    companion object {
+        private const val MAX_BYTES = 32L * 1024 * 1024
+        @Volatile private var instance: ClipboardImages? = null
+        private const val MEDIA_SETTLE_MS = 1_000L
+        private const val KEY_RECENT_PHOTOS_ALL = "recent_photos_all"
+        fun getInstance(context: Context): ClipboardImages = instance ?: synchronized(this) {
+            instance ?: ClipboardImages(context.applicationContext).also { instance = it }
+        }
+    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mutex = Mutex()
+    private val prefs = context.getSharedPreferences("clipboard_images", Context.MODE_PRIVATE)
+    private val boardPrefs = context.getSharedPreferences("clipboard_board", Context.MODE_PRIVATE)
+    // One refresh may be running and one pending; a MediaStore burst cannot queue
+    // an unbounded number of full queries behind an image copy.
+    private val refreshRequests = Channel<Unit>(Channel.CONFLATED)
+    private val pinListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "pins" || key == "group_members") refresh()
+    }
+    private val directory = File(context.cacheDir, "clipboard_images")
+    private val _images = MutableStateFlow<List<ClipboardImage>>(emptyList())
+    val images = _images.asStateFlow()
+    private val previewState = ClipboardImagePreviewState(prefs.getString("last_dismissed_preview_copy_v2", null))
+    val preview = previewState.preview
+    private val _recentScreenshotsEnabled = MutableStateFlow(false)
+    val photoAccess = _recentScreenshotsEnabled.asStateFlow()
+    private val _boardSnapshot = MutableStateFlow(ClipboardImageBoardSnapshot())
+    val boardSnapshot = _boardSnapshot.asStateFlow()
+    // 最近截图默认开（11-02：用户找不到截图）；还没给相册权限时剪贴板里出一行「允许」，关掉或拒绝权限后不再出。
+    private val _screenshotsNeedAccess = MutableStateFlow(false)
+    val screenshotsNeedAccess = _screenshotsNeedAccess.asStateFlow()
+    private val _pasteFailure = MutableStateFlow<ImagePasteFailure?>(null)
+    val pasteFailure = _pasteFailure.asStateFlow()
+    fun reportPasteFailure(image: ClipboardImage, packageName: String) { _pasteFailure.value = ImagePasteFailure(image, packageName) }
+    fun clearPasteFailure() { _pasteFailure.value = null }
+    private var history = emptyList<ClipboardImage>()
+    private var media = emptyList<ClipboardImage>()
+    private var hidden = prefs.getStringSet("hidden_images", emptySet()).orEmpty().toSet()
+    private var observing = false
+    private var expiry: Job? = null
+    private val cachedSources = mutableMapOf<String, ClipboardImage>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val settledRefresh = Runnable { refresh() }
+    /** 相册监听只在键盘显示时注册；收着时截的图，弹出键盘那一次查询就能看到（提示看截图时间，1 分钟内照样出）。 */
+    @Volatile private var keyboardShown = false
+    private val observer = object : ContentObserver(mainHandler) {
+        // 别的应用存图、系统扫描相册会连着发几十次变更，每次都查一遍相册；停 1 秒没有新变更再查一次。
+        override fun onChange(selfChange: Boolean) {
+            mainHandler.removeCallbacks(settledRefresh)
+            mainHandler.postDelayed(settledRefresh, MEDIA_SETTLE_MS)
+        }
+    }
+
+    /** Keyboard window shown/hidden: query once on show; watch the photo library only while shown. */
+    fun setKeyboardVisible(shown: Boolean) {
+        if (keyboardShown == shown) return
+        keyboardShown = shown
+        if (shown) { refresh(); return }
+        mainHandler.removeCallbacks(settledRefresh)
+        // 收起后马上又弹出时，弹出那次刷新会重新注册；这里不能把它拆掉。
+        scope.launch { mutex.withLock { if (!keyboardShown) stopObserving() } }
+    }
+
+    /** Callers hold [mutex]. */
+    private fun stopObserving() {
+        if (!observing) return
+        runCatching { context.contentResolver.unregisterContentObserver(observer) }
+        observing = false
+    }
+
+    init {
+        boardPrefs.registerOnSharedPreferenceChangeListener(pinListener)
+        scope.launch {
+            mutex.withLock {
+                history = runCatching {
+                    val array = JSONArray(prefs.getString("history", "[]"))
+                    (0 until array.length()).mapNotNull { index ->
+                        // A malformed or expired record must not hide the other saved images.
+                        runCatching {
+                            val item = array.getJSONObject(index)
+                            val uri = item.getString("uri")
+                            val name = Uri.parse(uri).lastPathSegment ?: return@runCatching null
+                            if (!File(directory, name).isFile) null
+                            else ClipboardImage(uri, item.getString("mime"), item.getLong("time"),
+                                source = item.optString("src").ifEmpty { null },
+                                sha256 = item.optString("sha").ifEmpty { null })
+                        }.getOrNull()
+                    }
+                }.getOrDefault(emptyList())
+                publish()
+            }
+            refresh()
+            for (request in refreshRequests) {
+                try { refreshNow() }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) {
+                    // The single consumer must survive a provider/observer failure.
+                    android.util.Log.w("ClipboardImages", "Image refresh failed (${error.javaClass.simpleName}); retry on next refresh")
+                }
+            }
+        }
+    }
+
+    fun hasPhotoAccess(): Boolean = if (AndroidPlatform.readMediaImages) {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED ||
+            (AndroidPlatform.partialPhotoAccess && ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED)
+    } else ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+
+    fun enableRecentScreenshots(enabled: Boolean) {
+        // Keep the existing opt-in and permission state, but narrow its meaning to screenshots.
+        prefs.edit().putBoolean("recent_photos", enabled).apply()
+        refresh()
+    }
+
+    /** 没拨过算开；拨过「关闭最近截图」、关掉权限提示或拒绝相册权限后才是关。 */
+    fun recentScreenshotsWanted(): Boolean = prefs.getBoolean("recent_photos", true)
+
+    fun recentScreenshotsEnabled(): Boolean = recentScreenshotsWanted() && hasPhotoAccess()
+
+    /** 「也显示相册照片」：默认关；开着时最近截图之外再加相册最新的几张（[ScreenshotImageSource.RECENT_PHOTO_LIMIT]）。 */
+    fun recentPhotosWanted(): Boolean = prefs.getBoolean(KEY_RECENT_PHOTOS_ALL, false)
+
+    fun includeRecentPhotos(on: Boolean) {
+        prefs.edit().putBoolean(KEY_RECENT_PHOTOS_ALL, on).apply()
+        refresh()
+    }
+
+    /**
+     * [more]: 同一次复制里的其余几张（相册多选复制），也记进历史、排在第一张后面，不弹提示。
+     * 它们的时间依次比第一张早 1 毫秒，按时间排的列表里顺序和复制时一样。
+     */
+    fun capture(uri: Uri, timestamp: Long = System.currentTimeMillis(), mimeType: String = "image/png",
+        more: List<Pair<Uri, String>> = emptyList()) {
+        val key = previewState.beginCopy(uri.toString(), timestamp) ?: return
+        scope.launch {
+            runCatching {
+                val image = prepare(ClipboardImage(uri.toString(), mimeType, timestamp))
+                mutex.withLock {
+                    hidden = hidden - image.uri
+                    prefs.edit().putStringSet("hidden_images", hidden).apply()
+                    history = retainHistory(listOf(image.copy(timestamp = timestamp)) + history.filterNot { it.uri == image.uri })
+                    previewState.prepared(key, image.copy(timestamp = timestamp), System.currentTimeMillis())
+                    save()
+                    publish()
+                }
+            }.onFailure {
+                previewState.failed(key)
+                android.util.Log.w("ClipboardImages", "Copied image unavailable (${it.javaClass.simpleName}); retry on next clipboard refresh")
+            }
+            more.forEachIndexed { index, (extra, extraMime) ->
+                val stamp = timestamp - index - 1
+                runCatching {
+                    val image = prepare(ClipboardImage(extra.toString(), extraMime, stamp)).copy(timestamp = stamp)
+                    mutex.withLock {
+                        hidden = hidden - image.uri
+                        prefs.edit().putStringSet("hidden_images", hidden).apply()
+                        val rest = history.filterNot { it.uri == image.uri }
+                        val at = rest.indexOfFirst { it.timestamp < stamp }.let { if (it < 0) rest.size else it }
+                        history = retainHistory(rest.take(at) + image + rest.drop(at))
+                        save()
+                        publish()
+                    }
+                }.onFailure {
+                    android.util.Log.w("ClipboardImages", "Copied image ${index + 2} unavailable (${it.javaClass.simpleName})")
+                }
+            }
+        }
+    }
+
+    private fun retainHistory(items: List<ClipboardImage>): List<ClipboardImage> {
+        val pins = pinnedKeys()
+        var recent = 0
+        return items.filter { "image:${it.uri}" in pins || recent++ < RECENT_CLIPBOARD_IMAGE_LIMIT }
+    }
+
+    /** Images kept out of the recent budget: fixed ones and ones in a group (group members are "groupId\tkey"). */
+    private fun pinnedKeys(): Set<String> = boardPrefs.getStringSet("pins", emptySet()).orEmpty().toSet() +
+        boardPrefs.getStringSet("group_members", emptySet()).orEmpty().map { it.substringAfter('\t') }.filter { it.startsWith("image:") }
+
+    suspend fun prepare(image: ClipboardImage): ClipboardImage = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val source = Uri.parse(image.uri)
+            val ownName = source.lastPathSegment
+            if (source.authority == "${context.packageName}.fileprovider" && source.pathSegments.firstOrNull() == "clipboard_images" && ownName != null && File(directory, ownName).isFile) {
+                if (history.none { it.uri == image.uri && it.timestamp == image.timestamp }) {
+                    history = retainHistory(listOf(image) + history.filter { it.uri != image.uri })
+                    save()
+                    publish()
+                }
+                return@withLock image
+            }
+            // 按地址加复制时间记：有的应用每次复制都用同一个地址放不同的图，只按地址认会一直拿到第一次那张（#174）。
+            val sourceKey = "${image.timestamp}:${image.uri}"
+            cachedSources[sourceKey]?.takeIf { File(directory, Uri.parse(it.uri).lastPathSegment.orEmpty()).isFile }?.let { return@withLock it }
+            require(source.scheme == "content") { "Unsupported image URI" }
+            val mime = runCatching { context.contentResolver.getType(source) }.getOrNull()
+                ?.takeIf { it.startsWith("image/") } ?: image.mimeType
+            require(mime.startsWith("image/")) { "Not an image" }
+            directory.mkdirs()
+            val extension = when (mime) { "image/jpeg" -> "jpg"; "image/gif" -> "gif"; "image/webp" -> "webp"; "image/heic" -> "heic"; "image/avif" -> "avif"; else -> "png" }
+            val file = File(directory, "${UUID.randomUUID()}.$extension")
+            val digest = MessageDigest.getInstance("SHA-256")
+            try {
+                (context.contentResolver.openInputStream(source) ?: error("Image is unavailable")).use { input ->
+                    file.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var total = 0L
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            require(total <= MAX_BYTES) { "Image exceeds 32 MiB" }
+                            output.write(buffer, 0, count)
+                            digest.update(buffer, 0, count)
+                        }
+                        require(total > 0) { "Empty image" }
+                    }
+                }
+                val hash = digest.digest().toHex()
+                // 同一张图换了个地址又来（粘贴后宿主又复制一次、同一张截图、再选一次）：
+                // 按内容认出来，只把原来那条挪到最前，不再多出一张。
+                findSameContent(hash, file.length())?.let { same ->
+                    file.delete()
+                    val reused = same.copy(timestamp = image.timestamp, label = image.label,
+                        source = preferredImageSource(same.source, image.uri), sha256 = hash)
+                    history = retainHistory(listOf(reused) + history.filterNot { it.uri == same.uri })
+                    cachedSources[sourceKey] = reused
+                    save()
+                    publish()
+                    return@withLock reused
+                }
+                val cached = image.copy(uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file).toString(),
+                    mimeType = mime, source = image.uri, sha256 = hash)
+                history = retainHistory(listOf(cached) + history)
+                cachedSources[sourceKey] = cached
+                // Readers may still hold a granted URI. Reclaim only old, unreferenced files.
+                val retained = history.mapNotNull { Uri.parse(it.uri).lastPathSegment }.toSet()
+                directory.listFiles()?.filter { it.name !in retained && it.lastModified() < System.currentTimeMillis() - 24 * 60 * 60_000L }
+                    ?.forEach { it.delete() }
+                evictOverBudget(keep = setOf(file.name))
+                save()
+                publish()
+                cached
+            } catch (error: Exception) { file.delete(); throw error }
+        }
+    }
+
+    private fun cachedFile(image: ClipboardImage): File? =
+        Uri.parse(image.uri).lastPathSegment?.let { File(directory, it) }
+
+    /** A history copy with the same bytes. Old records without a hash are hashed only when the size matches. */
+    private fun findSameContent(hash: String, size: Long): ClipboardImage? = history.firstOrNull { item ->
+        val file = cachedFile(item)?.takeIf { it.isFile } ?: return@firstOrNull false
+        if (file.length() != size) return@firstOrNull false
+        (item.sha256 ?: runCatching { file.sha256() }.getOrNull()) == hash
+    }
+
+    // 同步清除，避免快速收起再打开时在后台任务执行前读到旧提示。
+    fun dismissPreview(uri: String? = null) {
+        previewState.dismiss(uri)
+        rememberDismissedCopy()
+    }
+    fun markPreviewPresented(uri: String) = previewState.presented(uri)
+    fun dismissPresentedPreview() {
+        previewState.dismissIfPresented()
+        rememberDismissedCopy()
+    }
+    private fun rememberDismissedCopy() {
+        prefs.edit().putString("last_dismissed_preview_copy_v2", previewState.lastCopyKey).apply()
+    }
+
+    /** 「图片占用上限」（MB），见 [CLIPBOARD_IMAGE_CACHE_MB_OPTIONS]。 */
+    fun cacheLimitMb(): Int = clipboardImageCacheMb(boardPrefs.getInt(CLIPBOARD_IMAGE_CACHE_MB_KEY, DEFAULT_CLIPBOARD_IMAGE_CACHE_MB))
+
+    /** 改「图片占用上限」：存下来，马上按新上限删最旧的没固定的图片。 */
+    fun setCacheLimitMb(mb: Int) {
+        boardPrefs.edit().putInt(CLIPBOARD_IMAGE_CACHE_MB_KEY, clipboardImageCacheMb(mb)).apply()
+        scope.launch { mutex.withLock {
+            if (evictOverBudget(keep = emptySet())) { save(); publish() }
+        } }
+    }
+
+    /** Keep the whole cache within 「图片占用上限」: the oldest unfixed copies go first. Call under [mutex]. */
+    private fun evictOverBudget(keep: Set<String>): Boolean {
+        val pinnedNames = pinnedKeys().mapNotNull { key ->
+            key.removePrefix("image:").takeIf { it != key }?.let { Uri.parse(it).lastPathSegment } }.toSet()
+        val evicted = clipboardImageEvictions(directory.listFiles().orEmpty().filter { it.isFile }
+            .map { CachedImageFile(it.name, it.length(), it.lastModified()) }, pinnedNames + keep,
+            clipboardImageCacheMb(boardPrefs.getInt(CLIPBOARD_IMAGE_CACHE_MB_KEY, DEFAULT_CLIPBOARD_IMAGE_CACHE_MB)) * 1024L * 1024).toSet()
+        if (evicted.isEmpty()) return false
+        evicted.forEach { File(directory, it).delete() }
+        history = history.filterNot { Uri.parse(it.uri).lastPathSegment in evicted }
+        cachedSources.entries.removeAll { Uri.parse(it.value.uri).lastPathSegment in evicted }
+        return true
+    }
+
+    fun clearHistory() {
+        scope.launch { mutex.withLock {
+            // Remove references immediately; keep granted files available to receiving apps.
+            dismissPreview()
+            history = emptyList()
+            save()
+            publish()
+        } }
+    }
+
+    /** Hide gallery entries and remove copied references; never delete the user's photos or granted files. */
+    fun removeImages(uris: Set<String>) {
+        scope.launch { mutex.withLock {
+            // 粘贴过的截图和它的副本只显示一张；删掉这张时连截图一起从列表藏掉（不删相册原图）。
+            val sources = history.filter { it.uri in uris }.mapNotNull { it.source }
+                .filter(::isMediaImageUri)
+            hidden = (hidden + uris + sources).toList().takeLast(1024).toSet()
+            prefs.edit().putStringSet("hidden_images", hidden).apply()
+            history = history.filterNot { it.uri in uris }
+            uris.forEach { dismissPreview(it) }
+            save()
+            publish()
+        } }
+    }
+
+    fun refresh() {
+        refreshRequests.trySend(Unit)
+    }
+
+    private suspend fun refreshNow() {
+        mutex.withLock {
+            // Disabling the automatic feed does not discard explicitly pinned images.
+            val includeRecent = recentScreenshotsEnabled()
+            media = if (hasPhotoAccess()) runCatching { queryRecentScreenshots(includeRecent) }
+                .getOrElse { clipboardMediaAfterRefreshFailure(media, includeRecent, pinnedKeys(), hidden,
+                    includeGalleryPhotos = includeRecent && recentPhotosWanted()) }
+                else emptyList()
+            // A screenshot taken in the last minute gets the same paste hint as a copied image.
+            // It is read locally only; it enters clipboard history only if the user pastes it.
+            // Only a screenshot gets the hint; a photo just taken with the camera is not offered for pasting.
+            if (includeRecent) media.filter { it.uri !in hidden && it.label != ScreenshotImageSource.PHOTO_LABEL }
+                .maxByOrNull { it.timestamp }
+                ?.let { previewState.offerScreenshot(it, System.currentTimeMillis()) }
+            val watch = recentScreenshotsEnabled() && keyboardShown
+            if (watch && !observing) {
+                runCatching { context.contentResolver.registerContentObserver(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, true, observer) }.onSuccess { observing = true }
+            } else if (!watch) stopObserving()
+            publish()
+        }
+    }
+
+    private fun queryRecentScreenshots(includeRecent: Boolean): List<ClipboardImage> {
+        val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val pathColumn = if (AndroidPlatform.mediaStoreDownloads) MediaStore.Images.Media.RELATIVE_PATH else null
+        val columns = listOfNotNull(MediaStore.Images.Media._ID, MediaStore.Images.Media.MIME_TYPE,
+            MediaStore.Images.Media.DATE_ADDED, MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.BUCKET_DISPLAY_NAME, pathColumn).toTypedArray()
+        val filter = ScreenshotImageSource.queryFilter(MediaStore.Images.Media.DISPLAY_NAME,
+            MediaStore.Images.Media.BUCKET_DISPLAY_NAME, pathColumn)
+        val args = Bundle().apply {
+            putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, filter.selection)
+            putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, filter.arguments.toTypedArray())
+            putStringArray(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.Images.Media.DATE_ADDED))
+            putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, android.content.ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+            putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, ScreenshotImageSource.MAX_QUERY_ROWS)
+        }
+        val screenshots = if (includeRecent) requireNotNull(context.contentResolver.query(collection, columns, args, null)) {
+            "MediaStore query unavailable"
+        }.use { cursor ->
+            buildList {
+                var scanned = 0
+                while (scanned < ScreenshotImageSource.MAX_QUERY_ROWS && cursor.moveToNext()) {
+                    scanned++
+                    val mime = cursor.getString(1) ?: continue
+                    if (mime.startsWith("image/") && ScreenshotImageSource.matches(cursor.getString(3),
+                            cursor.getString(4), if (pathColumn != null) cursor.getString(5) else null)) {
+                        add(ClipboardImage(ContentUris.withAppendedId(collection, cursor.getLong(0)).toString(),
+                            mime, cursor.getLong(2) * 1000, "截图"))
+                    }
+                }
+            }
+        } else emptyList()
+        val shown = if (includeRecent && recentPhotosWanted())
+            ScreenshotImageSource.withRecentPhotos(screenshots, queryRecentPhotos(collection, columns)) else screenshots
+        val found = shown.mapTo(mutableSetOf()) { it.uri }
+        val pinned = ScreenshotImageSource.pinnedMediaImages(pinnedKeys()).filterNot { it.uri in found || it.uri in hidden }
+        // A lower recent limit must never evict an explicitly fixed image. Fetch only
+        // its metadata by ID, in bounded batches, even when it is older than the feed.
+        val fixed = buildList {
+            pinned.groupBy { it.id }.entries.chunked(ScreenshotImageSource.MAX_QUERY_ROWS).forEach { batch ->
+                val byId = batch.associate { it.key to it.value }
+                val selection = "${MediaStore.Images.Media._ID} IN (${batch.joinToString(",") { "?" }})"
+                val fixedArgs = Bundle().apply {
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                        batch.map { it.key.toString() }.toTypedArray())
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, batch.size)
+                }
+                requireNotNull(context.contentResolver.query(collection, columns, fixedArgs, null)) {
+                    "Pinned MediaStore query unavailable"
+                }.use { cursor ->
+                    var scanned = 0
+                    while (scanned < batch.size && cursor.moveToNext()) {
+                        scanned++
+                        val mime = cursor.getString(1)?.takeIf { it.startsWith("image/") } ?: continue
+                        byId[cursor.getLong(0)].orEmpty().forEach { source ->
+                            add(ClipboardImage(source.uri, mime, cursor.getLong(2) * 1000, "截图"))
+                        }
+                    }
+                }
+            }
+        }
+        return shown + fixed
+    }
+
+    /** The newest few pictures in the photo library, any folder: one small sorted query, no filter. */
+    private fun queryRecentPhotos(collection: Uri, columns: Array<String>): List<ClipboardImage> {
+        val args = Bundle().apply {
+            putStringArray(android.content.ContentResolver.QUERY_ARG_SORT_COLUMNS, arrayOf(MediaStore.Images.Media.DATE_ADDED))
+            putInt(android.content.ContentResolver.QUERY_ARG_SORT_DIRECTION, android.content.ContentResolver.QUERY_SORT_DIRECTION_DESCENDING)
+            putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, ScreenshotImageSource.RECENT_PHOTO_LIMIT)
+        }
+        return requireNotNull(context.contentResolver.query(collection, columns, args, null)) {
+            "MediaStore query unavailable"
+        }.use { cursor ->
+            buildList {
+                while (size < ScreenshotImageSource.RECENT_PHOTO_LIMIT && cursor.moveToNext()) {
+                    val mime = cursor.getString(1)?.takeIf { it.startsWith("image/") } ?: continue
+                    add(ClipboardImage(ContentUris.withAppendedId(collection, cursor.getLong(0)).toString(),
+                        mime, cursor.getLong(2) * 1000, ScreenshotImageSource.PHOTO_LABEL))
+                }
+            }
+        }
+    }
+
+    private fun save() {
+        val array = JSONArray()
+        history.forEach { item ->
+            array.put(JSONObject().put("uri", item.uri).put("mime", item.mimeType).put("time", item.timestamp).apply {
+                item.source?.let { put("src", it) }
+                item.sha256?.let { put("sha", it) }
+            })
+        }
+        prefs.edit().putString("history", array.toString()).apply()
+    }
+
+    private fun publish() {
+        val screenshotsEnabled = recentScreenshotsEnabled()
+        val publishedImages = retainedClipboardImages(history, media, pinnedKeys(), hidden)
+        _boardSnapshot.value = ClipboardImageBoardSnapshot(
+            publishedImages, screenshotsEnabled, screenshotsEnabled && recentPhotosWanted())
+        _recentScreenshotsEnabled.value = screenshotsEnabled
+        _screenshotsNeedAccess.value = recentScreenshotsWanted() && !hasPhotoAccess()
+        _images.value = publishedImages
+        // 历史和最近截图只供手动浏览，不从列表挑一张图片反复弹出。
+        previewState.expire(System.currentTimeMillis())
+        val image = preview.value
+        expiry?.cancel()
+        expiry = if (image == null) null else scope.launch {
+            val maxAge = previewState.activeMaxAgeMs
+            delay((image.timestamp + maxAge - System.currentTimeMillis()).coerceIn(1, maxAge))
+            refresh()
+        }
+    }
+}
+
+private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+private fun File.sha256(): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    inputStream().use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            digest.update(buffer, 0, count)
+        }
+    }
+    return digest.digest().toHex()
+}

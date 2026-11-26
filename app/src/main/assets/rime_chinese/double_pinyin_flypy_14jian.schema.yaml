@@ -1,0 +1,214 @@
+# Rime schema
+# 小写编码为精确字母，大写代表合并键；逐位派生支持点击与滑动混合输入。
+schema:
+  schema_id: double_pinyin_flypy_14jian
+  name: 小鹤双拼
+  version: "1.2"
+  language: zh
+  input_scheme: double_pinyin
+  description: |
+    小鹤双拼十四键，与二十六键使用同一份雾凇词库。
+    合并键 qw/er/ty/ui/op、as/df/gh/jk/l、zx/cv/bn/m 由词库消歧。
+
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中文, 西文 ]
+  - name: full_shape
+    states: [ 半角, 全角 ]
+  - name: ascii_punct
+    reset: 0
+    states: [ 。，, ．， ]
+  - name: traditionalization
+    states: [ 简, 繁 ]
+  - name: emoji
+    reset: 0
+    states: [ 无表情, 表情 ]
+
+engine:
+  processors:
+    - ascii_composer
+    - recognizer
+    - key_binder
+    - speller
+    - punctuator
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - ascii_segmentor
+    - matcher
+    - abc_segmentor
+    - punct_segmentor
+    - fallback_segmentor
+  translators:
+    - punct_translator
+    - script_translator
+    # 生僻字（设置「生僻字」，默认关；关着时只看一下开关就返回），见 lua/cyime_rare_chars.lua。
+    - lua_translator@*cyime_rare_chars
+  # 与 26 键、九键同一套候选规则：长按删掉的候选不再出现（cyime_candidate_policy）。
+  filters:
+    - cyime_candidate_policy
+    # 时间、日期、星期后面接当前时间和日期（设置 › 语言与方案 › 中文输出，默认关）。
+    - cyime_datetime
+    - simplifier@emoji
+    # 打符号名出符号（设置 › 语言与方案 › 中文输出，默认关）：加号后面多出 +。
+    - simplifier@cyime_symbols
+    # 打希腊字母名出希腊字母（设置 › 语言与方案 › 中文输出，默认关）：xita 第 3 个候选是 θ Θ，见 lua/cyime_greek_letters.lua。
+    - lua_filter@*cyime_greek_letters
+    - simplifier@traditionalize
+    # 我的短语里写的「余」照写的出（余宛如），见 traditionalize_user。
+    - simplifier@traditionalize_user
+    - uniquifier
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcbaQETUOADGJZCB
+  delimiter: " '"
+  algebra:
+    # 词库里的单个大写字母音节（A–Z，供 26 键直接打出字母）与合并键的大写编码同形，
+    # 会被当成完整拼写，使同一输入里的简拼全部被剪掉（zdky 只出 ZDJT）。14 键用不到它们。
+    - erase/^[A-Z]$/
+    - erase/^xx$/
+    - derive/^([jqxy])u$/$1v/
+    - derive/^([aoe])([ioun])$/$1$1$2/
+    - xform/^([aoe])(ng)?$/$1$1$2/
+    - xform/iu$/Ⓠ/
+    - xform/(.)ei$/$1Ⓦ/
+    - xform/uan$/Ⓡ/
+    - xform/[uv]e$/Ⓣ/
+    - xform/un$/Ⓨ/
+    - xform/^sh/Ⓤ/
+    - xform/^ch/Ⓘ/
+    - xform/^zh/Ⓥ/
+    - xform/uo$/Ⓞ/
+    - xform/ie$/Ⓟ/
+    - xform/(.)i?ong$/$1Ⓢ/
+    - xform/ing$|uai$/Ⓚ/
+    - xform/(.)ai$/$1Ⓓ/
+    - xform/(.)en$/$1Ⓕ/
+    - xform/(.)eng$/$1Ⓖ/
+    - xform/[iu]ang$/Ⓛ/
+    - xform/(.)ang$/$1Ⓗ/
+    - xform/ian$/Ⓜ/
+    - xform/(.)an$/$1Ⓙ/
+    - xform/(.)ou$/$1Ⓩ/
+    - xform/[iu]a$/Ⓧ/
+    - xform/iao$/Ⓝ/
+    - xform/(.)ao$/$1Ⓒ/
+    - xform/ui$/Ⓥ/
+    - xform/in$/Ⓑ/
+    - xlit/ⓆⓌⓇⓉⓎⓊⒾⓄⓅⓈⒹⒻⒼⒽⒿⓀⓁⓏⓍⒸⓋⒷⓃⓂ/qwrtyuiopsdfghjklzxcvbnm/
+    - "derive/^aa$/a'/"
+    - "derive/^oo$/o'/"
+    - "derive/^ee$/e'/"
+    - "abbrev/^(.).+$/$1'/"
+    # 每一位可独立为精确字母或合并键，不将精确字母重新映射成歧义编码。
+    - derive/^(.{0})[qw](.*)$/$1Q$2/
+    - derive/^(.{0})[er](.*)$/$1E$2/
+    - derive/^(.{0})[ty](.*)$/$1T$2/
+    - derive/^(.{0})[ui](.*)$/$1U$2/
+    - derive/^(.{0})[op](.*)$/$1O$2/
+    - derive/^(.{0})[as](.*)$/$1A$2/
+    - derive/^(.{0})[df](.*)$/$1D$2/
+    - derive/^(.{0})[gh](.*)$/$1G$2/
+    - derive/^(.{0})[jk](.*)$/$1J$2/
+    - derive/^(.{0})[zx](.*)$/$1Z$2/
+    - derive/^(.{0})[cv](.*)$/$1C$2/
+    - derive/^(.{0})[bn](.*)$/$1B$2/
+    - derive/^(.{1})[qw](.*)$/$1Q$2/
+    - derive/^(.{1})[er](.*)$/$1E$2/
+    - derive/^(.{1})[ty](.*)$/$1T$2/
+    - derive/^(.{1})[ui](.*)$/$1U$2/
+    - derive/^(.{1})[op](.*)$/$1O$2/
+    - derive/^(.{1})[as](.*)$/$1A$2/
+    - derive/^(.{1})[df](.*)$/$1D$2/
+    - derive/^(.{1})[gh](.*)$/$1G$2/
+    - derive/^(.{1})[jk](.*)$/$1J$2/
+    - derive/^(.{1})[zx](.*)$/$1Z$2/
+    - derive/^(.{1})[cv](.*)$/$1C$2/
+    - derive/^(.{1})[bn](.*)$/$1B$2/
+
+translator:
+  # 整句规则和词组模型挑句同 14 键全拼、26 键小鹤（2026-11-22：yijkhchfdole 首选「已经贵很多了」，14 键小鹤原来
+  # 只出 Rime 的一条整句，词组模型没接上；gh、cv 同键，好/贵 都是 GC）。
+  sentence_char_homophones: 4
+  sentence_position_penalty: -2.0
+  sentence_position_final_only: [吧, 呗, 呢, 吗, 啊, 嘛, 啦, 呀, 哦, 咯, 哟, 哇, 嘞, 喽, 个, 只, 条, 张, 件, 位, 块]
+  sentence_position_initial_only: [把, 被]
+  max_sentences: 4
+  sentence_cutoff_threshold: 100
+  dictionary: rime_ice
+  prism: double_pinyin_flypy_14jian
+  # 邻键纠错（2026-11-22「太大了打成太大可，纠错没有纠错能力」）：按偏到旁边的键（l 打成 jk）和 26 键一样当场纠，
+  # 纠出的整句按 26 键的规则排（多半在第二位）。14 键没有量出来的键位，用固定的键位表：同一排左右相邻、
+  # 第一二排上下相邻（第三排和第二排错开，不算）。「邻键纠错」关着时 App 设 _cyime_merged_neighbor_off，不纠。
+  enable_correction: true
+  cyime_neighbor_correction: true
+  cyime_merged_key_neighbors: "Q:EA;E:QTD;T:EUG;U:TOJ;O:Ul;A:DQ;D:AGE;G:DJT;J:GlU;l:JO;Z:C;C:ZB;B:Cm;m:B"
+  spelling_hints: 8
+  always_show_comments: true
+  preedit_format:
+    - xlit/QETUOADGJZCB/qetuoadgjzcb/
+  # 合并码无法直接反算唯一音节；保留真实双拼编码，候选注释显示词库读音。
+  # 不能套用二十六键 preedit_format 将合并代表字母误显示成另一音节。
+
+# 生僻字按本方案的拼写规则算出每个读音的精确字母编码，合并键逐位换成键上的字母再查（AU 补 ai、si、su）。
+cyime_rare_merged_keys: true
+
+menu:
+  page_size: 5
+
+punctuator:
+  import_preset: default
+  __include: cyime_punctuator:/punctuator
+
+key_binder:
+  import_preset: default
+
+recognizer:
+  import_preset: default
+  patterns:
+    punct: "^/([0-9]+[a-z]*|[a-z]+)$"
+
+# 简/繁（设置 → 语言与方案 → 繁体输出）：与 26 键同一张台湾正体转换表，见 opencc/cyime_s2tw.json。
+# 候选里显示表情（设置 › 语言与方案 › 中文输出，默认关）：打「开心」在词后面多出 😄。
+# 表情表与 26 键雾凇方案共用 opencc/emoji.json；输入法按键前按设置写 emoji 选项（ImeKeyRouter）。
+emoji:
+  option_name: emoji
+  opencc_config: emoji.json
+  inherit_comment: false
+
+# 打符号名出符号（默认关）：打「加号」「问号」「括号」时词后面多出 +、？ ?、（） ()；词本身位置不变。
+# 表与 26 键共用 opencc/cyime_symbols.json；输入法按键前按设置写 cyime_symbol_names 选项（ImeKeyRouter）。
+cyime_symbols:
+  option_name: cyime_symbol_names
+  opencc_config: cyime_symbols.json
+  inherit_comment: false
+
+traditionalize:
+  option_name: traditionalization
+  opencc_config: cyime_s2tw.json
+  tips: none
+  # 短语（user_table）交给 traditionalize_user。
+  excluded_types: [user_table]
+
+# 我的短语按 cyime_s2tw_user.json 转：没有词组管着的「余」照写的出（姓余，用户 11-12），别的字照常转。
+# 其他候选上面已经转过（simplified），不再转。
+traditionalize_user:
+  option_name: traditionalization
+  opencc_config: cyime_s2tw_user.json
+  tips: none
+  excluded_types: [simplified]
+
+# 四条整句里由词组模型挑最自然的一条放第一，同 26 键小鹤（双拼两个键一个字，按键数算音节）。没有 t9_ngram.lm 时照原样。
+t9:
+  # 按偏一个键（太大了 打成 TAUDAJE 太大可、太低了 打成 TAUDUJE 态度可，后者差一点）：纠出的整词和整句也拿来和原样的整句一起
+  # 让词组模型比，词组模型认为纠出的常见 e^7 倍以上（每纠一个音节算一次）才排第一，原样的退第二。打的键本身拼得
+  # 出词时不造句，不纠；英文和专名照样第一（CTUmE 仍是 CyIME）。2026-11-22 门槛扫过 5～9，回归数字见 k14-correct-1122。
+  slip_correction_margin: 7.0
+  slip_whole_words: true
+  sentence_rescore: true
+  rescore_keys_per_syllable: 2
+  ngram_model: t9_ngram
+  ngram_sentence_start: false
+  rescore_rime_weight: 0

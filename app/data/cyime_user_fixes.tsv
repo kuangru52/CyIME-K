@@ -1,0 +1,153 @@
+# Words the user put on the must-pass list where the dictionary order is wrong for him (2026-10-30).
+# Same rule as cyime_domain_terms.tsv: an existing entry is raised to at least this weight, a missing one is added.
+# Each row moves only its own code. text<TAB>code<TAB>weight
+慢慢地	man man de	125647
+好好地	hao hao de	88235
+他也会来的	ta ye hui lai de	20000
+帮我拿个快递	bang wo na ge kuai di	20000
+连上了吗	lian shang le ma	20000
+按钮	an niu	215000
+# Found on the fresh SMS set (2026-10-30): the chat blend floored these to ~100 although rime-ice has them common.
+我了	wo le	9999
+新浪微博	xin lang wei bo	12150
+# His report (2026-10-30): 测完 is not a dictionary word, so the pattern rule cannot form it.
+测完了吗	ce wan le ma	3000
+# GitHub #40 (2026-11-01): both missing from the dictionary; zaicikulimeiyou read 再次苦力没有.
+删后台	shan hou tai	5000
+在词库里没有	zai ci ku li mei you	20000
+# His report (2026-11-03): yijingyongdehenshuangle read 已经用的很爽了 (用的 706440 vs 用得 42575, 很爽 is a word).
+用得很	yong de hen	100000
+# His report (2026-11-06, Q 群): woyongzhizhechengleyigezhichuan read 我用指着成了一个只穿 (纸船 2072 under 只穿 16843,
+# 折成 not in the dictionary, so 指着+成了 won); baomaodeshaonian read 豹猫的少年 (抱猫 not in the dictionary).
+纸船	zhi chuan	20000
+折成	zhe cheng	50000
+折纸船	zhe zhi chuan	3000
+抱猫	bao mao	3000
+# Q 群 2 (2026-11-08): 咾 came only with 生僻字 on, so 咕咾肉 / 菠萝咕咾肉 could not be typed as words or learned.
+# 古老肉 (15) is the common misspelling; 咕咾肉 goes above it. 咾 alone stays low, after the common lao characters.
+咾	lao	50
+咕咾肉	gu lao rou	1000
+菠萝咕咾肉	bo luo gu lao rou	500
+# B站 report (2026-11-10, 微软双拼): cs'qd'dk'ro read 从抢到若 (从强到弱 and 到弱 not in the dictionary). Added with the
+# common 从X到Y/由X到Y opposites; missing ones are added, ones under 200 (tencent placeholders) raised.
+从强到弱	cong qiang dao ruo	5000
+从弱到强	cong ruo dao qiang	5000
+由强到弱	you qiang dao ruo	3000
+由弱到强	you ruo dao qiang	3000
+从深到浅	cong shen dao qian	2000
+从浅到深	cong qian dao shen	2000
+从快到慢	cong kuai dao man	2000
+从慢到快	cong man dao kuai	2000
+从重到轻	cong zhong dao qing	2000
+从轻到重	cong qing dao zhong	2000
+从短到长	cong duan dao chang	2000
+从长到短	cong chang dao duan	2000
+从新到旧	cong xin dao jiu	2000
+从旧到新	cong jiu dao xin	2000
+从好到坏	cong hao dao huai	2000
+从坏到好	cong huai dao hao	2000
+从冷到热	cong leng dao re	2000
+从热到冷	cong re dao leng	2000
+从前到后	cong qian dao hou	2000
+从后到前	cong hou dao qian	2000
+从易到难	cong yi dao nan	2000
+从难到易	cong nan dao yi	2000
+从少到多	cong shao dao duo	2000
+从多到少	cong duo dao shao	2000
+从低到高	cong di dao gao	2000
+从下到上	cong xia dao shang	2000
+从简到繁	cong jian dao fan	2000
+从近到远	cong jin dao yuan	2000
+从远到近	cong yuan dao jin	2000
+从内到外	cong nei dao wai	2000
+从外到内	cong wai dao nei	2000
+从东到西	cong dong dao xi	2000
+从西到东	cong xi dao dong	2000
+从粗到细	cong cu dao xi	2000
+# ime5 (2026-11-11), sentences 豆包 typed right and CyIME did not; the full model's lexicon (万象, cut to 500k) dropped
+# 艳门照 and 天之蓝, and rime-ice lacks 艳门照 and 积食. 积食 goes on the first page of jishi (after 技师), not first.
+艳门照	yan men zhao	500
+天之蓝	tian zhi lan	500
+积食	ji shi	7000
+收个尾	shou ge wei	500
+只见上不见下	zhi jian shang bu jian xia	300
+# 翻来覆去 sank to 4567 in the chat blend; the full model then wrote 翻来复去. Back to its rime-ice count.
+翻来覆去	fan lai fu qu	15765
+# His report (2026-11-17, B 站评论): shenmo gave 神魔 first; many people type 什么 as shen mo. Only this word gets the
+# mo reading; 么 mo itself was tried and dropped (nine-key replay: sentences then ended in 么, 我昨天么 / 满意么).
+什么	shen mo	100000
+# His report (2026-11-19): 蛇喰梦子 (狂赌之渊) could not be typed; 喰 was only in 东京喰种.
+蛇喰梦子	she can meng zi	2000
+# His report (2026-11-19): goushangren gave 狗伤人 first, a tencent entry (138); 够伤人 was not a word, so 够 + 伤人 lost to it.
+够伤人	gou shang ren	1000
+# His report (2026-11-19): with 简拼 on, uia (小鹤双拼) put 是啊 15th; rime-ice rates it 2700 while 对啊 388506, 是呀 263133, 是爱 87317.
+是啊	shi a	300000
+# His report (2026-11-22, 小鹤双拼 yi'jk'hc'hf'do'le): 已经好狠多了 led 已经好很多了. 好很多 had 391 (ext), so Rime's own
+# sentence took 好狠 (7601) + 多了; without the word model, or when learned words fill Rime's few sentences, the word
+# model never sees 好很多. The word model rates 好+很多 2.2 times 好狠 (ln P -11.99 against -12.81): 7601 × 2.2.
+好很多	hao hen duo	17000
+# 词库改进 2026-11-22（Claude 线程，按 tools/ime_lab/lexicon_source.py 的约定流程，不用外部 API）：日常/网络/办公/医疗常用词
+# 在同码里被冷僻词压住，或词库没有。权重规则：该码别的词都 <300 → 3000；否则 min(3000, 第一名/2)，不抢第一；
+# 明显比当前第一名常用的（新冠>信管、下单>下蛋、微博>微薄、飞书>飞鼠、闭环>鼻环、整活>正火、余票>鱼漂）= 第一名 + 1；
+# 规范词形低于同音异形词的（《第一批异形词整理表》/现汉）= 异形词 + 1。
+新冠	xin guan	3126
+下单	xia dan	11058
+整活	zheng huo	1053
+余票	yu piao	839
+微博	wei bo	56823
+飞书	fei shu	1470
+闭环	bi huan	1126
+嫉妒	ji du	35520
+推诿	tui wei	3024
+疲沓	pi ta	31
+核酸	he suan	3000
+爆雷	bao lei	3000
+全栈	quan zhan	2033
+拉取	la qu	3000
+闭源	bi yuan	639
+抄底	chao di	3000
+定投	ding tou	1559
+生成式	sheng cheng shi	3000
+私信	si xin	3000
+天哪	tian na	3000
+番剧	fan ju	3000
+补牙	bu ya	3000
+胃镜	wei jing	3000
+双减	shuang jian	3000
+美瞳	mei tong	2922
+训练集	xun lian ji	3000
+拉群	la qun	3000
+春招	chun zhao	3000
+撸铁	lu tie	3000
+# 词库改进 2026-11-22 第二批（单独一个提交，门槛不过就整批回退）：这些常用词在 rime-ice 原表里远高于同码词，
+# 被 70/30 聊天混合压到第二（支付<制服、优惠<又会、到账<道长、发货<发火）。逐个判断后只恢复日常/购物/办公/医疗里
+# 明显更常用的；去世/放假/毛衣/安利/一秒 这类聊天里本来就多的不动。权重 = 当前第一名 + 1，只动本码。
+支付	zhi fu	89693
+优惠	you hui	127421
+宽带	kuan dai	15691
+注销	zhu xiao	16941
+中介	zhong jie	56164
+发货	fa huo	48055
+折扣	zhe kou	28518
+指数	zhi shu	26457
+部位	bu wei	84016
+图形	tu xing	21767
+单击	dan ji	52978
+幅度	fu du	65467
+股价	gu jia	51120
+全套	quan tao	18085
+精度	jing du	34668
+凭证	ping zheng	31183
+源码	yuan ma	20223
+额度	e du	39564
+口服	kou fu	29232
+补办	bu ban	13952
+到账	dao zhang	8820
+献血	xian xue	7905
+上月	shang yue	20106
+眼科	yan ke	7775
+个税	ge shui	6608
+减税	jian shui	7449
+抽签	chou qian	6426
+结清	jie qing	2930
+协商	xie shang	48753

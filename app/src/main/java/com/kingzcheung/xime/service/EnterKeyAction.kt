@@ -1,0 +1,92 @@
+package com.kingzcheung.xime.service
+
+import android.text.InputType
+import android.view.inputmethod.EditorInfo
+
+/**
+ * 回车、Shift+回车、Ctrl+回车的唯一规则；屏幕键盘、实体键盘、直接上屏的输入框都走这里，回车键面也按它写。
+ *
+ * 回车：键面写什么就做什么。输入框有动作（搜索、前往、下一项、完成）且没标「回车不做动作」，
+ * 执行这个动作；否则换行。多行文本框的换行直接上屏 "\n"，不再发模拟回车键：很多聊天软件把收到的回车键
+ * 当实体键盘的「发送」，键上写着换行、软件里设的也是换行，照样发出去（用户 11-03）。Gboard 同样上屏 "\n"。
+ * 终端、单行框、不收文字的输入框仍发回车键。
+ *
+ * 应用把回车设成「发送」（微信「回车键发送消息」等）也不改普通回车：照样换行、键面写换行，
+ * 只有按住 Ctrl 才发送（用户 11-04，11-05 真机确认生效）。搜索、前往、下一项、完成照旧由回车执行。
+ * 设置里打开「回车发送」（默认关，用户 11-05）后，应用自己把回车设成发送的框里普通回车执行发送、键面写发送，
+ * 应用没设的框照样换行。
+ *
+ * Shift+回车：换行，不管输入框声明了什么动作（用户 11-04）：多行框声明完成、搜索也换行，单行的发送框也换行。
+ * 终端发 Shift+回车键，由终端自己处理；没有换行可言的单行框、数字框照普通回车。
+ *
+ * Ctrl+回车：发送。回车键面上写着动作（搜索、前往、下一项、完成）的照回车执行动作；其他输入框一律执行「发送」动作，
+ * 不管输入框标没标「回车不做动作」。回车键、Ctrl+回车键会被聊天软件按它自己的「回车键发送」设置处理，
+ * 设置关着就是换行，所以 Ctrl+回车不能发按键（用户 11-04 TIM 实测，回车发送关：上屏换行符、回车键、Shift+回车、
+ * 小键盘回车都换行，Ctrl+回车键没反应，执行「发送」动作才发出去）。终端发 Ctrl+回车键。
+ */
+internal object EnterKeyAction {
+    sealed interface Plan
+    data class EditorAction(val action: Int) : Plan
+    /** 上屏 "\n"。 */
+    data object Newline : Plan
+    /** 发回车键。 */
+    data object EnterKey : Plan
+    /** 发 Ctrl+回车键（只给终端）。 */
+    data object CtrlEnterKey : Plan
+    /** 发 Shift+回车键（只给终端）。 */
+    data object ShiftEnterKey : Plan
+
+    /** 普通回车会执行的动作；「发送」不在里面，只给 Ctrl+回车。 */
+    private val actions = setOf(EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_SEARCH,
+        EditorInfo.IME_ACTION_NEXT, EditorInfo.IME_ACTION_DONE)
+
+    /** 普通回车执行的输入框动作；换行时为 null。 */
+    fun editorAction(imeOptions: Int): Int? {
+        val action = imeOptions and EditorInfo.IME_MASK_ACTION
+        return action.takeIf { imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION == 0 && it in actions }
+    }
+
+    /** [appSend]：设置「回车发送」开着。 */
+    fun enter(imeOptions: Int, inputType: Int, terminal: Boolean, appSend: Boolean = false): Plan {
+        editorAction(imeOptions)?.let { return EditorAction(it) }
+        if (terminal) return EnterKey
+        if (appSend && appDeclaresSend(imeOptions)) return EditorAction(EditorInfo.IME_ACTION_SEND)
+        return if (isMultiLineText(inputType) || isSendTextField(imeOptions, inputType)) Newline else EnterKey
+    }
+
+    fun shiftEnter(imeOptions: Int, inputType: Int, terminal: Boolean): Plan {
+        if (terminal) return ShiftEnterKey
+        if (isMultiLineText(inputType) || isSendTextField(imeOptions, inputType)) return Newline
+        return enter(imeOptions, inputType, terminal)
+    }
+
+    fun ctrlEnter(imeOptions: Int, inputType: Int, terminal: Boolean): Plan {
+        if (terminal) return CtrlEnterKey
+        // 「发送」不归普通回车，只给 Ctrl+回车；聊天框标了「回车不做动作」也照样执行（TIM、微信实测能发）。
+        return editorAction(imeOptions)?.let(::EditorAction) ?: EditorAction(EditorInfo.IME_ACTION_SEND)
+    }
+
+    /** 回车键面上的动作名，和 [enter] 同一判断；发送框也写换行，「回车发送」开着且应用设了回车发送时写发送。 */
+    fun label(imeOptions: Int, appSend: Boolean = false): String = if (appSend && appDeclaresSend(imeOptions)) "发送"
+    else when (editorAction(imeOptions)) {
+        EditorInfo.IME_ACTION_GO -> "前往"
+        EditorInfo.IME_ACTION_SEARCH -> "搜索"
+        EditorInfo.IME_ACTION_NEXT -> "下一项"
+        EditorInfo.IME_ACTION_DONE -> "完成"
+        else -> "换行"
+    }
+
+    /** 应用自己把回车设成发送：声明「发送」且没标「回车不做动作」（微信开着「回车键发送消息」时就是这样，11-04 实测）。 */
+    fun appDeclaresSend(imeOptions: Int): Boolean =
+        imeOptions and EditorInfo.IME_MASK_ACTION == EditorInfo.IME_ACTION_SEND &&
+            imeOptions and EditorInfo.IME_FLAG_NO_ENTER_ACTION == 0
+
+    /** 单行的发送框也上屏换行：发回车键应用会当成发送。 */
+    private fun isSendTextField(imeOptions: Int, inputType: Int): Boolean =
+        imeOptions and EditorInfo.IME_MASK_ACTION == EditorInfo.IME_ACTION_SEND &&
+            inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT
+
+    fun isMultiLineText(inputType: Int): Boolean =
+        inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT &&
+            inputType and (InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_IME_MULTI_LINE) != 0
+}

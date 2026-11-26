@@ -1,0 +1,2815 @@
+package com.kingzcheung.xime.ui.keyboard
+
+import com.kingzcheung.xime.service.displaySelection
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.magnifier
+import androidx.compose.ui.input.pointer.pointerInput
+
+import com.kingzcheung.xime.ui.theme.VisualStyles
+import com.kingzcheung.xime.ui.theme.visualMaterial
+import com.kingzcheung.xime.ui.theme.drawUnderTopFeather
+import com.kingzcheung.xime.ui.theme.liquidGlassEdge
+import com.kingzcheung.xime.ui.theme.withSharedBackdropMotion
+
+import com.kingzcheung.xime.service.PredictionManager
+import android.annotation.SuppressLint
+import android.content.SharedPreferences
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.draw.rotate
+import androidx.compose.animation.core.tween
+import com.kingzcheung.xime.ui.theme.cySwapFadeIn
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
+import androidx.compose.material.icons.outlined.HighlightOff
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.FirstBaseline
+import kotlin.math.roundToInt
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
+import com.kingzcheung.xime.R
+import com.kingzcheung.xime.keyboard.MainType
+import com.kingzcheung.xime.keyboard.KeyboardPage
+import com.kingzcheung.xime.keyboard.OverlayRoute
+import com.kingzcheung.xime.keyboard.PanelType
+import com.kingzcheung.xime.keyboard.ToolbarAction
+import com.kingzcheung.xime.settings.CandidateCommentMode
+import com.kingzcheung.xime.settings.SettingsPreferences
+import com.kingzcheung.xime.speech.RecognitionState
+
+@Immutable
+data class CandidateBarVisuals(
+    val backgroundColor: Color,
+    val textColor: Color,
+    val dividerColor: Color,
+    val accentColor: Color = Color(0xFF1A73E8),
+    val selectedTextColor: Color = Color(0xFF1A73E8),
+    val isDarkTheme: Boolean = false,
+    val preeditBackgroundColor: Color = Color.Unspecified,
+    val opaqueComments: Boolean = false,
+    val textShadow: androidx.compose.ui.graphics.Shadow? = null,
+    val glassControlBackground: Color? = null,
+)
+
+private val NoSentenceSelection: androidx.compose.runtime.State<com.kingzcheung.xime.service.SentenceEditSession?> =
+    androidx.compose.runtime.mutableStateOf(null)
+/** 交的是 State：只有读 `.value` 的拼音条随拖选重绘。 */
+internal val LocalSentenceSelection =
+    androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.State<com.kingzcheung.xime.service.SentenceEditSession?>> { NoSentenceSelection }
+
+/** Highlight the replacement in the first sentence while its local editor is open. */
+internal data class SentenceCandidateHighlight(val sentence: String, val start: Int, val end: Int)
+internal val LocalSentenceCandidateHighlight = androidx.compose.runtime.staticCompositionLocalOf<SentenceCandidateHighlight?> { null }
+
+internal fun sentenceCandidateText(text: String, index: Int, drag: IntRange?,
+                                   active: SentenceCandidateHighlight?, color: Color): AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        val selected = drag ?: active?.takeIf { index == 0 && text.endsWith(it.sentence) }
+            ?.let { item ->
+                val prefix = text.length - item.sentence.length
+                (prefix + item.start) until (prefix + item.end)
+            }
+        selected?.takeIf { !it.isEmpty() && it.first >= 0 && it.last < text.length }?.let {
+            addStyle(androidx.compose.ui.text.SpanStyle(background = color.copy(alpha = 0.3f)), it.first, it.last + 1)
+        }
+    }
+
+data class CandidateBarCallbacks(
+    val onCandidateSelect: (Int) -> Unit,
+    val onVisibleCandidatesChanged: ((List<String>) -> Unit)? = null,
+    val onVisibleAssociationsChanged: ((List<String>) -> Unit)? = null,
+    val onLogoClick: (() -> Unit)? = null,
+    val onBack: (() -> Unit)? = null,
+    val onHideKeyboard: (() -> Unit)? = null,
+    val onShowMoreCandidates: (() -> Unit)? = null,
+    val onClearAssociation: (() -> Unit)? = null,
+    val onInputTextClick: (() -> Unit)? = null,
+    val onAssociationSelect: ((Int) -> Unit)? = null,
+    val onDismissClipboardPreview: (() -> Unit)? = null,
+    val onOpenClipboard: (() -> Unit)? = null,
+    val onClipboardImageSelect: ((com.kingzcheung.xime.clipboard.ClipboardImage) -> Unit)? = null,
+    val onExpandClipboardImages: (() -> Unit)? = null,
+    val onCancelInput: (() -> Unit)? = null,
+    /** 展开着在候选栏上往右划过门槛：收回展开页，打的字留着（11-21；没展开时往左划展开，同合并前）。 */
+    val onCollapseCandidates: (() -> Unit)? = null,
+    val onReorderToolbar: ((List<String>) -> Unit)? = null,
+    // 长按候选：抛事件给宿主（键盘视图内弹确认覆盖层，不弹独立窗口——
+    // 焦点型弹窗会抢焦点导致 IME 被系统收起）。
+    val onCandidateLongPress: ((Int) -> Unit)? = null,
+    /** A long press followed by a drag selects a range within the first sentence. */
+    val onSentenceSelection: ((Int, Int) -> Unit)? = null,
+    val onSentenceSelectionChange: ((Int, Int) -> Unit)? = null,
+    val onSentenceSelectionEnd: (() -> Unit)? = null,
+    /** 手指开始左右滑打字候选。 */
+    val onCandidateStripScrolled: (() -> Unit)? = null,
+    /** 打字候选滑到最后几个了。 */
+    val onCandidateStripNearEnd: (() -> Unit)? = null,
+    val onSaveQuickActions: (() -> Unit)? = null,
+    val onEditQuickActions: (() -> Unit)? = null,
+)
+
+/** 空间充足时均匀排布，项目溢出时保留完整触控尺寸并允许滚动。 */
+@Composable
+internal fun ToolbarItemsRow(
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
+) {
+    BoxWithConstraints(modifier) {
+        Row(
+            modifier = Modifier
+                .horizontalScroll(rememberScrollState())
+                .widthIn(min = maxWidth),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            content = content,
+        )
+    }
+}
+
+@Composable
+fun CandidateBar(
+    state: CandidateBarState,
+    page: KeyboardPage = KeyboardPage.Main(com.kingzcheung.xime.keyboard.MainType.FULL),
+    candidatePageExpanded: Boolean = false,
+    toolbarActions: List<ToolbarAction> = emptyList(),
+    visuals: CandidateBarVisuals,
+    callbacks: CandidateBarCallbacks,
+    inlineSuggestions: List<*> = listOf<Any>(),
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
+    isFloatingMode: Boolean = false,
+    isVoiceSticky: Boolean = false,
+    voiceAmplitude: Float = 0f,
+    voiceSpectrum: FloatArray = FloatArray(16),
+    voiceRecognitionState: RecognitionState = RecognitionState.IDLE,
+    voicePluginName: String = "",
+    /** 点拼音打开编辑；参数是点在第几个字母后面（算不出来是 null，光标照旧）。 */
+    onEditPreedit: ((Int?) -> Unit)? = null,
+    showPreeditPreview: Boolean = true,
+    showNumberLabels: Boolean = false,
+    inlinePreeditEditor: (@Composable () -> Unit)? = null,
+    commentsAreGlosses: Boolean = false,
+    glidePreviewText: String = "",
+    isGlidePreview: Boolean = false,
+) {
+    val glass = LocalKeyboardInputPreferences.current.frostedGlass
+    val glassEnabled = glass.enabled
+    val themeSurface = com.kingzcheung.xime.ui.theme.LocalMaterialPalette.current?.surface
+        ?: visuals.preeditBackgroundColor.takeUnless { it == Color.Unspecified || it.alpha == 0f }
+        ?: if (visuals.isDarkTheme) Color(0xFF202020) else Color(0xFFF2F2F2)
+    val themeKey = com.kingzcheung.xime.ui.theme.LocalKeyboardPalette.current?.key ?: themeSurface
+    val shadowRadius = with(LocalDensity.current) { 1.dp.toPx() }
+    // 候选栏/工具栏这一条跟按键一样厚：浅色玻璃默认底色 20%、按键 80%，栏里原来只有 20% 底色，
+    // 后面是深色应用时整条透出应用的深底，深字只能靠白光晕撑着（GitHub #40/#55，平板 11-01 复现）。
+    // 按键比底色厚时给这一条补一层同样的底色，补到按键的厚度；深色玻璃（底色比按键厚）和不透明主题都不变。
+    val glassNormalized = glass.normalized()
+    val panelOpacity = com.kingzcheung.xime.ui.theme.LocalSharedKeyboardBackdrop.current?.opacity
+        ?: glassNormalized.backgroundOpacity
+    // 浅色页亲手调过背景不透明度时，工具栏跟着键盘底色走，不再单独补厚（用户反馈 11-03）。
+    val stripBoost = if (glassEnabled && !glass.lightPanelCustom) glassStripBoostAlpha(panelOpacity, glassNormalized.keyOpacity) else 0f
+    val stripGlass = if (stripBoost > 0f)
+        glass.copy(backgroundOpacity = maxOf(panelOpacity, glassNormalized.keyOpacity)) else glass
+    val textSurface = remember(stripGlass, themeSurface, themeKey, shadowRadius, visuals.textColor, visuals.selectedTextColor, visuals.accentColor) {
+        if (glassEnabled) resolveFrostedTextSurface(themeSurface, visuals.textColor,
+            visuals.selectedTextColor, visuals.accentColor, stripGlass, themeKey, shadowRadius) else null
+    }
+    val protectedVisuals = visuals.withTextSurface(textSurface)
+    val configuration = LocalConfiguration.current
+    val isLandscape = !isFloatingMode && configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val horizontalPadding = 8.dp
+    val context = LocalContext.current
+
+    // Toolbar and keys share the selected keyboard palette, including in previews.
+    val iconButtonContainer = protectedVisuals.glassControlBackground ?: androidx.compose.ui.graphics.lerp(
+        protectedVisuals.backgroundColor,
+        protectedVisuals.accentColor,
+        0.15f
+    )
+    val iconButtonTint = protectedVisuals.textColor
+    // 候选栏两端的返回、展开按钮平时垫一层淡底，不画边框（用户 10-20）。从中间工具按钮按下时的底推出来，
+    // 只取一半左右的浓度，处在候选栏底和中间按钮之间：玻璃时是同一种键帽玻璃（半透明，跟键帽一致），
+    // 非玻璃时是同一种白/灰叠色，所以黑白主题也只是比底色稍亮或稍暗一点，不会冒出一块别的颜色。
+    val edgeStrength = LocalEdgeButtonStrength.current
+    val edgeButtonFill = protectedVisuals.glassControlBackground?.let { it.copy(alpha = it.alpha * edgeStrength) }
+        ?: if (protectedVisuals.isDarkTheme) Color.White.copy(alpha = 0.25f * edgeStrength)
+        else Color(0xFFE0E0E0).copy(alpha = edgeStrength)
+    val preferences = remember(context) { SettingsPreferences.getPrefsPublic(context) }
+    var showCancelButton by remember(preferences) {
+        mutableStateOf(SettingsPreferences.shouldShowCandidateCancelButton(context))
+    }
+    var associationCancelCross by remember(preferences) {
+        mutableStateOf(SettingsPreferences.isAssociationCancelCross(context))
+    }
+    var swipeExpand by remember(preferences) {
+        mutableStateOf(SettingsPreferences.isCandidateSwipeExpand(context))
+    }
+    var closeOnRight by remember(preferences) {
+        mutableStateOf(SettingsPreferences.isCandidateCloseOnRight(context))
+    }
+    // 两端按钮按下时的底色。原来「候选栏按钮按压高亮」开着时更深一档；那个开关 11-24 去掉了（关着也亮，他说有没有都一样），
+    // 存着的旧值不再读，大家都是原来的默认样子。
+    val edgePressedFill = iconButtonContainer
+    DisposableEffect(preferences) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == SettingsPreferences.KEY_SHOW_CANDIDATE_CANCEL_BUTTON || key == null) {
+                showCancelButton = SettingsPreferences.shouldShowCandidateCancelButton(context)
+            }
+            if (key == SettingsPreferences.KEY_ASSOCIATION_CANCEL_CROSS || key == null) {
+                associationCancelCross = SettingsPreferences.isAssociationCancelCross(context)
+            }
+            if (key == SettingsPreferences.KEY_CANDIDATE_SWIPE_EXPAND || key == null) {
+                swipeExpand = SettingsPreferences.isCandidateSwipeExpand(context)
+            }
+            if (key == SettingsPreferences.KEY_CANDIDATE_CLOSE_ON_RIGHT || key == null) {
+                closeOnRight = SettingsPreferences.isCandidateCloseOnRight(context)
+            }
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val showCompositionCancel = showCancelButton && state !is CandidateBarState.Idle && callbacks.onCancelInput != null
+    // 开了「候选滑到头回弹展开」又选了「关闭键位置：右边」（11-22 他）：取消／关联想画成「×」放在右边收起键盘那一格，
+    // 左边不放；打字时点它取消、出联想时点它关联想、回到空闲后同一个位置是收起键盘。开关关着时和 1.15.101 一样。
+    // 「右边一处关」= 左右滑展开开着且关闭键放右边：右边那一格只用来关，▾/▴ 不放（展开、收回只靠滑）。
+    // 其余（「经典」，滑不滑都一样）右边照 1.15.101 放 ▾/▴（11-23 他选：左右滑单独做开关，经典也能滑）。
+    val rightCloses = swipeExpand && closeOnRight
+    // 「关闭」不看「候选栏取消按钮」开关：那个开关只管「展开」时左边的「‹」（11-23 设置改版，「关闭」下不显示它）。
+    val closeAtRight = rightCloses && state !is CandidateBarState.Idle && callbacks.onCancelInput != null
+    val cancelAtLeft = showCompositionCancel && !rightCloses
+    // 「<」右边那 4dp：开了「候选滑到头回弹展开」、后面是候选行时算拉动区的一部分（11-21 平板上按在空白处拉不动）；
+    // 开关关着时和 1.15.101 一样画在拉动区外面。
+    val pullLeadingGap = if (swipeExpand && cancelAtLeft && inlineSuggestions.isEmpty()) 4.dp else 0.dp
+    // 候选栏两端最多两个按钮（用户 11-03）：左边取消，最右展开候选，位置固定。左边打字和联想都是「<」，
+    // 设置「联想关闭键用叉号」打开后联想时才是 ⊗（用户 11-03：两种状态图标不一样）；
+    // 收起键盘只在空闲（没有候选）时有。手写候选也是纯联想态，但那里的取消是撤销当前字，仍用「<」。
+    val closesAssociation = state is CandidateBarState.AssociationOnly &&
+        !(page is KeyboardPage.Main && page.type == MainType.HANDWRITING)
+    // 手写候选的注释是读音，单字也放得下：「自动」在手写里照样显示，只有「隐藏」才不显示
+    // （用户 10-31：手机竖屏「自动」把手写读音藏掉了，忘了读音的字正要靠它）。
+    val commentsAllowed = rememberCandidateCommentsAllowed().let {
+        if (it == CandidateCommentMode.AUTO && page is KeyboardPage.Main && page.type == MainType.HANDWRITING) CandidateCommentMode.SHOW else it
+    }
+    // 终端里编码一律显示在候选栏（见 TerminalEditor）。
+    // 超过 22sp 的部分由 ScaledCandidateBar 整条放大，这里写 22sp 那一档（见 candidateBarTextSp）。
+    val candidateTextSize = candidateBarTextSp(rememberCandidateTextSize())
+    val candidateItemPadding = rememberCandidateItemPadding(candidateTextSize.sp)
+    val candidateFontFamily = AppFonts.candidateFontFamily
+    val commentFontFamily = AppFonts.commentFontFamily
+
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    val itemPaddingPx = with(density) { 8.dp.toPx() }
+    val spacingPx = with(density) { 4.dp.toPx() }
+
+    val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val rowPaddingPx = with(density) { 16.dp.toPx() }
+    val rightSidePx = with(density) {
+        val moreBtn = if (callbacks.onShowMoreCandidates != null) 38.dp.toPx() else 0f
+        val clearBtn = if (callbacks.onClearAssociation != null) 38.dp.toPx() else 0f
+        val hideBtn = if (callbacks.onHideKeyboard != null) 28.dp.toPx() else 0f
+        rowPaddingPx + maxOf(moreBtn, clearBtn) + hideBtn + 8.dp.toPx()
+    }
+
+    // 候选行滚动状态：需在 state 分支前声明——ChineseCandidates 的 hasAnyMore
+    // 叠加 canScrollForward 判断（见分支内注释）
+    val candidateListState = rememberLazyListState()
+
+    val displayCandidates: List<String>
+    val displayAssociation: List<String>
+    val displayComments: List<String>
+    val hasAnyMore: Boolean
+    val showInputTextRow: Boolean
+    val showLeftIcon: Boolean
+
+    when (val s = state) {
+        is CandidateBarState.Idle -> {
+            displayCandidates = emptyList()
+            displayAssociation = emptyList()
+            displayComments = emptyList()
+            hasAnyMore = false
+            showLeftIcon = true
+        }
+        is CandidateBarState.ChineseCandidates -> {
+            // 候选栏只排放得下的几个，其余可左右滑动查看；展开列表接到候选栏时也全部可滑到（只排可见的几个）。
+            displayCandidates = s.candidates
+            displayComments = s.comments
+
+            hasAnyMore = s.hasMore || s.candidates.size > 1
+            showLeftIcon = false
+            displayAssociation = s.associationCandidates.take(PredictionManager.MAX_ASSOCIATION_COUNT)
+        }
+        is CandidateBarState.AssociationOnly -> {
+            displayCandidates = emptyList()
+            // 展开时和打字候选一样：栏里能放几个放几个，展开页从放不下的那个接着排（用户 11-03：只显示一个「除」）。
+            displayAssociation = s.candidates.take(maxOf(PredictionManager.MAX_ASSOCIATION_COUNT, s.highlightIndex + 1))
+            hasAnyMore = s.hasMore
+            showLeftIcon = false
+            displayComments = s.comments
+        }
+        is CandidateBarState.EnglishCandidates -> {
+            displayCandidates = s.candidates.take(20)
+            displayComments = s.comments
+            displayAssociation = emptyList()
+            hasAnyMore = false
+            showLeftIcon = false
+        }
+        is CandidateBarState.ClipboardDisplay -> {
+            displayCandidates = s.candidates.take(20)
+            displayComments = emptyList()
+            displayAssociation = emptyList()
+            hasAnyMore = false
+            showLeftIcon = true
+        }
+        is CandidateBarState.Calculator -> {
+            displayCandidates = s.candidates.take(20)
+            displayComments = s.comments
+            displayAssociation = emptyList()
+            hasAnyMore = false
+            showLeftIcon = false
+        }
+    }
+    showInputTextRow = when (page) {
+        is KeyboardPage.Overlay -> page.route !is OverlayRoute.Clipboard
+        else -> true
+    }
+
+    // 在候选栏上往左拉开展开页：有更多候选、还没展开、不是滑行预览时才拉得动；展开着往右拉收回（11-21，合并后方向反了改回）。
+    // 只在设置「候选滑到头回弹展开」打开时有（11-21 他：默认关，关着时和 1.15.101 一样只有 ▾/▴）。
+    val pullExpand = callbacks.onShowMoreCandidates
+    // 栏里已经全部露全、后面也没有了：不让拉开一个空的展开页（11-22 平板分体：上屏「你好」后联想只有 6 个，全在栏里，
+    // 往左一拉展开页是空的）。露全了几个由候选行报上来（-1 是还没报），换一组候选就重新算。只管开关打开时，▾ 照旧。
+    var barShownCandidates by remember(state) { mutableStateOf(-1) }
+    var barShownAssociations by remember(state) { mutableStateOf(-1) }
+    var associationsAllFit by remember(state) { mutableStateOf(false) }
+    val barShowsAll = swipeExpand && when (state) {
+        is CandidateBarState.ChineseCandidates -> !state.hasMore && barShownCandidates >= displayCandidates.size &&
+            (displayAssociation.isEmpty() || barShownAssociations >= displayAssociation.size)
+        is CandidateBarState.AssociationOnly -> associationsAllFit ||
+            (barShownAssociations >= 0 && barShownAssociations >= displayAssociation.size)
+        else -> false
+    }
+    val pullExpands = swipeExpand && pullExpand != null && !candidatePageExpanded && hasAnyMore && !barShowsAll && !isGlidePreview
+    val pullCollapse = callbacks.onCollapseCandidates?.takeIf { swipeExpand && candidatePageExpanded && !isGlidePreview }
+    val associationHighlight = (state as? CandidateBarState.AssociationOnly)?.highlightIndex
+        ?.takeIf { it in displayAssociation.indices }
+    // 换了一组候选回到最前；「下一项」移动联想高亮时，高亮已完整露出就不滚，移出栏外才滚到刚好露出，
+    // 和打字候选同一规矩（用户 10-30：原来每按一下都把高亮滚到最左，像在翻页，看着永远是第一个）。
+    // 纯联想态栏里只有联想词，联想序号就是 LazyRow 的序号。
+    val associationSpacingPx = with(density) { 4.dp.roundToPx() }
+    LaunchedEffect(displayCandidates, displayAssociation, associationHighlight) {
+        if (associationHighlight == null) candidateListState.scrollToItem(0)
+        else candidateListState.revealItem(associationHighlight, associationSpacingPx)
+    }
+
+    // Keep this animation outside the conditional button branches so changing pages
+    // does not discard the previous angle and jump directly to the destination.
+    val expansionRotation by animateFloatAsState(
+        targetValue = if (candidatePageExpanded) CANDIDATE_EXPANSION_ARROW_EXPANDED_DEGREES else 0f,
+        animationSpec = tween(200, easing = FastOutSlowInEasing), label = "candidateExpansion",
+    )
+    val existingPreedit = (state as? CandidateBarState.ChineseCandidates)?.let {
+        it.preeditText.ifEmpty { it.inputText }
+    }.orEmpty()
+    val preeditText = if (glidePreviewText.isEmpty()) existingPreedit else
+        listOf(existingPreedit, glidePreviewText).filter { it.isNotBlank() }.joinToString(" ")
+    val previewPrefs = LocalKeyboardInputPreferences.current
+    // 编码只显示在选中的一处：显示在输入框时不再另浮气泡（用户 11-01「只显示一处」；另设开关被他否掉：「这是想干什么」）。
+    val showPreedit = showPreeditPreview && showInputTextRow && preeditText.isNotEmpty() &&
+        previewPrefs.showCodeInCandidateBar
+    // 分体时工具栏和候选栏也分到中缝两侧；剪贴板预览与自动填充建议仍是整条。
+    // 编码预览浮在栏上方，不受中缝裁剪影响。
+    val splitGap = LocalSplitKeyboardGap.current
+    val splitGapX = splitGap?.gapX()?.takeIf {
+        state !is CandidateBarState.ClipboardDisplay && inlineSuggestions.isEmpty()
+    }
+    var barOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var barTopInWindow by remember { mutableStateOf<Float?>(null) }
+    // 候选栏连内边距的整宽＝键盘卡片宽：「键盘顶上一行」要和卡片一样宽。
+    var barWidthPx by remember { mutableStateOf(0) }
+    // 根布局坐标：Shift 拖线和候选位置都用这个坐标系。
+    val dragSpace = LocalKeyDragSpace.current
+    var barDragOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    SideEffect { splitGap?.reportBarTop(if (splitGapX != null) barTopInWindow else null) }
+    DisposableEffect(splitGap) { onDispose { splitGap?.reportBarTop(null) } }
+
+    // 「紧贴候选上方」（11-20 他按微信那张图定的）：拼音是贴在键盘边框正上方的一张同色小签，键盘边框、候选栏、
+    // 按键都不动；和原来的气泡一样浮在应用上，但不隔开、不挡太多。转过角度的悬浮键盘改用气泡。
+    // 点开编辑时小签收起，由浮在同一处的编辑条接替（KeyboardView 画）。
+    val tabRotated = isFloatingRotated(LocalFloatingKeyboardRotation.current)
+    val pinyinTabMode = showPreedit && previewPrefs.preeditOnTopLine && inlinePreeditEditor == null && !tabRotated
+    val candidateRowHeight = 44.dp
+    val cardTopCorner = LocalKeyboardCardTopCorner.current
+    // 「整行」（11-23 他：开了以后高度没变、圆角突兀、背景没延伸）：拼音行是键盘自己多出来的一行，排在候选栏上面、
+    // 和候选栏同一块底（背景图、玻璃、描边都铺过去，上两角就是键盘卡片的圆角），整块键盘加高这一行，不挡翻译栏、候选和按键。
+    // 只有主候选栏有这一行（键盘按 [LocalPreeditStripRow] 留出高度）；高度按真实 dp 算，候选栏放大时要除掉放大倍数。
+    val stripRowHeight = LocalPreeditStripRow.current / LocalCandidateBarScale.current
+    val stripInRow = stripRowHeight > 0.dp && previewPrefs.preeditStyle == SettingsPreferences.PREEDIT_STYLE_STRIP
+    // 「拼音显示声调」（11-20）：按高亮候选的读音给拼音标调，只改这里画出来的字，上屏和编辑还是原来的字母。
+    val toneData = LocalPreeditToneData.current
+    val toneCandidate = (state as? CandidateBarState.ChineseCandidates)?.let { it.candidates.getOrNull(it.highlightIndex) }
+    val toneText: ((String) -> String)? = remember(toneData, toneCandidate) {
+        if (toneData == null || toneCandidate.isNullOrEmpty()) null
+        else ({ text: String -> com.kingzcheung.xime.rime.PinyinTones.mark(text, toneCandidate, toneData) })
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (state is CandidateBarState.ClipboardDisplay) Modifier.heightIn(min = 44.dp + stripRowHeight)
+                else Modifier.height(44.dp + stripRowHeight))
+            .onGloballyPositioned {
+                barOrigin = it.positionInWindow()
+                barTopInWindow = barOrigin.y
+                if (barWidthPx != it.size.width) barWidthPx = it.size.width
+                barDragOrigin = dragSpace.point(it)
+            }
+            .shiftDragOverlay({ barDragOrigin }, protectedVisuals.accentColor)
+            .clipSplitGapColumn(splitGapX, splitGap) { barOrigin }
+            .background(if (glassEnabled) Color.Transparent else protectedVisuals.backgroundColor)
+            .then(if (stripBoost > 0f) Modifier.glassStripBoost(stripBoost) else Modifier)
+            // Glass rails inherit the keyboard background; only individual controls get a material.
+            // 描边的上两角跟键盘卡片同一圆角，否则直角描边在卡片圆角处被切掉（用户 10-31）。
+            .then(if (glassEnabled) Modifier else Modifier.visualMaterial(VisualStyles.current, cardTopCorner,
+                level = if (state is CandidateBarState.Idle) com.kingzcheung.xime.ui.theme.MaterialLevel.FLOATING
+                    else com.kingzcheung.xime.ui.theme.MaterialLevel.BASE, bottomRadius = 0.dp)),
+    ) {
+    if (stripRowHeight > 0.dp) {
+        // 留着的这一行一直在（不是打字时才有），免得每打一个词键盘和应用就上下跳一次；没在打字时是空的一截键盘。
+        Box(Modifier.fillMaxWidth().height(stripRowHeight).glassTextHalo(textSurface?.halo).testTag("preedit-strip-row")) {
+            if (stripInRow && pinyinTabMode) {
+                androidx.compose.runtime.CompositionLocalProvider(LocalPreeditToneText provides toneText) {
+                    val (label, corrected) = preeditLineLabel(state, preeditText, protectedVisuals.textColor, protectedVisuals.accentColor)
+                    PreeditStripRow(LocalPreeditToneText.current?.let { label.withSameLengthText(it) } ?: label,
+                        protectedVisuals.textColor, previewPrefs.preeditAlign, horizontalPadding + 8.dp, onEditPreedit, corrected)
+                }
+            }
+        }
+    }
+    // 候选栏本身：照旧 44dp，内容在里面竖着居中。
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (state is CandidateBarState.ClipboardDisplay) Modifier.heightIn(min = 44.dp)
+                else Modifier.height(44.dp))
+            .padding(horizontal = horizontalPadding)
+            // 玻璃太薄时字和图标垫反色光晕，宿主是黑是白都看得清（用户 10-31 黑色背景截图）。
+            .glassTextHalo(textSurface?.halo),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalPreeditToneText provides toneText) {
+            // 气泡：默认；选了小签但悬浮键盘转了角度时也用气泡（「候选栏左侧」11-20 他要求去掉）。
+            PreeditBubbleHost(showPreedit && (!previewPrefs.preeditOnTopLine || tabRotated)) { hidden ->
+                PreeditPreview(preeditText, protectedVisuals, onEditPreedit,
+                    floatingPreeditColor(themeSurface, visuals.preeditBackgroundColor), hidden, previewPrefs.preeditAlign)
+            }
+            // 整行排进了上面那一行时不再另弹小窗。
+            PreeditBubbleHost(pinyinTabMode && !stripInRow) { hidden ->
+                // 首选是纠错来的：小签显示纠正后的读音，改动的字母标红。
+                val tabColor = preeditTabColor(themeSurface)
+                val tabText = readableThemeText(protectedVisuals.textColor, tabColor.copy(alpha = 1f))
+                val (tabLabel, corrected) = preeditLineLabel(state, preeditText, tabText, protectedVisuals.accentColor)
+                PreeditTab(LocalPreeditToneText.current?.let { tabLabel.withSameLengthText(it) } ?: tabLabel,
+                    tabText, tabColor, previewPrefs.preeditStyle, previewPrefs.preeditAlign, horizontalPadding, cardTopCorner,
+                    with(LocalDensity.current) { barWidthPx.toDp() }, onEditPreedit, hidden, corrected)
+            }
+        }
+
+        if (state is CandidateBarState.ClipboardDisplay) {
+            ClipboardPreviewBar(state.candidates, protectedVisuals, callbacks, iconButtonContainer, state.image,
+                extractedCount = state.extractedCount)
+            return@Column
+        }
+
+        // 空闲工具栏：菜单、收起与中间各图标同为等宽一格，胶囊同尺寸（分体时扣除中缝）。
+        val rowDensity = LocalDensity.current
+        var toolbarRowWidth by remember { mutableStateOf(0.dp) }
+        // 联想态不放收起键盘按钮，最右只有展开按钮（用户 11-02）。
+        val idleToolbarCell = if (inlineSuggestions.isEmpty() && toolbarRowWidth > 0.dp) {
+            val gap = splitGapX?.let { (l, r) -> with(rowDensity) { (r - l).toDp() } } ?: 0.dp
+            // 空闲时左侧菜单／返回总在，固定格＝它加收起按钮。
+            val fixed = (if (callbacks.onHideKeyboard != null) 1 else 0) + 1
+            // 悬浮小窗里格子随宽度收窄（最窄 36dp），图标都留在面板内，不再横向溢出压住边框。
+            maxOf((toolbarRowWidth - 8.dp - gap) / (toolbarActions.size + fixed).coerceAtLeast(1), 36.dp)
+        } else null
+        // 打字时两端「<」「^」用和空闲工具栏同样宽的格子：宽屏下同样变成胶囊（用户 10-20）。
+        val edgeStyle = LocalEdgeButtonStyle.current
+        val edgeSlot = if (edgeStyle == EdgeButtonStyle.CIRCLE || toolbarRowWidth <= 0.dp) null else {
+            val gap = splitGapX?.let { (l, r) -> with(rowDensity) { (r - l).toDp() } } ?: 0.dp
+            val baseSlot = maxOf((toolbarRowWidth - 8.dp - gap) / (toolbarActions.size + 2).coerceAtLeast(1), 36.dp)
+            // 手机（含横屏）和平板竖屏都保持正圆；候选栏宽过 940dp 才开始拉长，到 1400dp（平板横屏）
+            // 拉到最宽 52dp（用户 10-21：原来手机上就开始拉，太早）。悬浮小窗格子窄时照旧缩小的圆。
+            val stretch = ((toolbarRowWidth - EDGE_STRETCH_START) / (EDGE_STRETCH_FULL - EDGE_STRETCH_START)).coerceIn(0f, 1f)
+            if (baseSlot < 44.dp) baseSlot else 44.dp + 20.dp * stretch
+        }
+        // 同心：胶囊圆角 = 键盘卡片圆角 - 胶囊离栏边的距离（上下各 6dp），和卡片四角同心。
+        val edgeCorner = if (edgeStyle == EdgeButtonStyle.CONCENTRIC) FloatingKeyboardCardCorner - 6.dp else null
+        // 窄键盘两端锚定在候选箭头的中心，中间工具均分余宽。宽键盘的所有工具仍各占完整一格。
+        // 两者之间不再在 600dp 一步跳变：收起键从展开键的圆按宽度逐渐拉成等分格胶囊（用户 11-09，#263）。
+        val toolbarSlot = when {
+            state !is CandidateBarState.Idle || idleToolbarCell == null -> null
+            else -> {
+                val blend = ((toolbarRowWidth - TOOLBAR_SLOT_BLEND_START) /
+                    (TOOLBAR_SLOT_BLEND_FULL - TOOLBAR_SLOT_BLEND_START)).coerceIn(0f, 1f)
+                androidx.compose.ui.unit.lerp(edgeSlot ?: 40.dp, idleToolbarCell, blend)
+            }
+        }
+        androidx.compose.runtime.CompositionLocalProvider(LocalCandidateRowHeight provides candidateRowHeight) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { toolbarRowWidth = with(rowDensity) { it.width.toDp() } }
+                // 工具栏和候选互换（开始打字、上屏回到空闲）时新内容快速淡入，和键盘换页同一套；
+                // 只淡这一行的图标和字，不淡栏底色，候选从第一帧起就能点。
+                .cySwapFadeIn(state is CandidateBarState.Idle),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (cancelAtLeft && closesAssociation && associationCancelCross) {
+                KeyboardToolbarButton({ callbacks.onCancelInput?.invoke() }, edgePressedFill,
+                    modifier = Modifier.testTag("association-cancel-cross"), restingFill = edgeButtonFill,
+                    slotWidth = edgeSlot, cornerRadius = edgeCorner, continuousPill = true) {
+                    Icon(Icons.Outlined.HighlightOff, contentDescription = "关闭联想",
+                        tint = protectedVisuals.textColor, modifier = Modifier.size(22.dp * LocalCandidateSizeFactor.current))
+                }
+                // 这 4dp 铺满栏高、自己接点按，免得点在第一个候选左边被这个键放大的触摸范围接走（#274）。
+                // 后面是候选行时这 4dp 放进拉动区里（[PullToExpandCandidates] 的 leadingGap），按在空白处也拉得动（11-21）。
+                if (pullLeadingGap == 0.dp) Spacer(Modifier.width(4.dp).fillMaxHeight().candidateGapTaps())
+            } else if (cancelAtLeft) {
+                KeyboardBackButton({ callbacks.onCancelInput?.invoke() }, edgePressedFill, protectedVisuals.textColor,
+                    label = if (closesAssociation) "关闭联想" else "取消输入",
+                    modifier = if (closesAssociation) Modifier.testTag("association-cancel") else Modifier,
+                    restingFill = edgeButtonFill, slotWidth = edgeSlot, cornerRadius = edgeCorner, continuousPill = true)
+                // 同上：点在「<」和第一个候选之间算点候选，不算取消输入（#274）；后面是候选行时放进拉动区。
+                if (pullLeadingGap == 0.dp) Spacer(Modifier.width(4.dp).fillMaxHeight().candidateGapTaps())
+            }
+            if (showLeftIcon) {
+                when (state) {
+                    is CandidateBarState.Idle -> {
+                        val panelHasToolbarBack = page is KeyboardPage.Overlay &&
+                            (page.route is OverlayRoute.Menu || page.route is OverlayRoute.SchemaList || page.route is OverlayRoute.Edit ||
+                                page.route is OverlayRoute.Emoji || page.route is OverlayRoute.Clipboard)
+                        if ((page is KeyboardPage.Main && page.type == MainType.HANDWRITING || panelHasToolbarBack) && callbacks.onBack != null) {
+                            KeyboardBackButton(callbacks.onBack, iconButtonContainer, protectedVisuals.textColor,
+                                modifier = Modifier.testTag("toolbar-leading"), slotWidth = toolbarSlot)
+                        } else {
+                            KeyboardToolbarButton({ callbacks.onLogoClick?.invoke() }, iconButtonContainer,
+                                modifier = Modifier.testTag("toolbar-leading"), slotWidth = toolbarSlot) {
+                                // 图标照旧用 CyIME 标志，只把读屏说明改成它的作用「展开菜单」。
+                                Icon(painterResource(R.drawable.cyime_toolbar_mark), contentDescription = "展开菜单",
+                                    tint = iconButtonTint, modifier = Modifier.size(22.dp * LocalCandidateSizeFactor.current))
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    is CandidateBarState.ClipboardDisplay -> {
+                        Row(
+                            modifier = Modifier.padding(end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "剪切板",
+                                tint = protectedVisuals.accentColor,
+                                modifier = Modifier.size(16.dp * LocalCandidateSizeFactor.current)
+                            )
+                        }
+                    }
+                    else -> {}
+                }
+            }
+
+            if (inlineSuggestions.isNotEmpty()) {
+                LazyRow(
+                    // 占满配额：内容少时建议靠左、右侧留白到收起按钮（收起按钮
+                    // 因此固定最右）；内容超出配额时占满并可横向滑动查看后续建议；
+                    // clipToBounds：滑动时滑出边界的建议裁剪掉，避免与左侧 logo 重叠
+                    modifier = Modifier
+                        .weight(1f)
+                        .clipToBounds(),
+                    overscrollEffect = null,
+                ) {
+                    itemsIndexed(inlineSuggestions, key = { index, _ -> index }) { _, suggestion ->
+                        Box(modifier = Modifier.fillMaxHeight()) {
+                            InlineSuggestionView(
+                                suggestion = suggestion,
+                                modifier = Modifier.fillMaxHeight(),
+                            )
+                            // 每条尾部 1dp 分隔线：条目之间为间隔，最后一条的尾线
+                            // 同时充当与候选词区的分界（与旧平铺布局视觉一致）
+                            InlineSuggestionDivider(
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                                color = protectedVisuals.dividerColor,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 11-21 恢复 1.15.101 的候选行（他：「原来的方案你还强制改了」）：打字候选照旧能左右滑看后面的，联想照旧走下面能滑的那行，
+            // 展开靠右边 ▾。往左拉展开只是附加，设置「候选滑到头回弹展开」打开才有：滑到头再往左拉过门槛松手展开（[PullToExpandCandidates]）。
+            if (state is CandidateBarState.ChineseCandidates || (isGlidePreview && state is CandidateBarState.AssociationOnly) ||
+                (splitGapX != null && state !is CandidateBarState.Idle) ||
+                (candidatePageExpanded && state is CandidateBarState.AssociationOnly && state.hasMore)) {
+                val previewAssociations = isGlidePreview && state is CandidateBarState.AssociationOnly
+                val stripCallbacks = if (isGlidePreview) callbacks.copy(
+                    onVisibleCandidatesChanged = null,
+                    onVisibleAssociationsChanged = null,
+                    onCandidateSelect = if (previewAssociations) { index -> callbacks.onAssociationSelect?.invoke(index); Unit }
+                        else callbacks.onCandidateSelect,
+                ) else if (swipeExpand) callbacks.copy(
+                    // 记下栏里露全了几个（见 barShowsAll），再照常往上报。
+                    onVisibleCandidatesChanged = { shown -> barShownCandidates = shown.size; callbacks.onVisibleCandidatesChanged?.invoke(shown) },
+                    onVisibleAssociationsChanged = { shown -> barShownAssociations = shown.size; callbacks.onVisibleAssociationsChanged?.invoke(shown) },
+                ) else callbacks
+                PullToExpandCandidates(pullExpands, { pullExpand?.invoke() }, protectedVisuals.textColor,
+                    Modifier.weight(1f).fillMaxHeight(), onCollapse = pullCollapse, leadingGap = pullLeadingGap) {
+                FixedCandidateStrip(
+                    candidates = if (previewAssociations) displayAssociation else displayCandidates,
+                    associations = if (previewAssociations) emptyList() else displayAssociation,
+                    comments = displayComments,
+                    visuals = protectedVisuals, callbacks = stripCallbacks,
+                    fontSize = candidateTextSize.sp,
+                    // 铺满栏高：候选上下的留白、候选之间的空隙点下去也算点最近的候选（#274）。
+                    modifier = Modifier.fillMaxSize().candidateGapTaps(),
+                    commentMode = commentsAllowed,
+                    commentsAreGlosses = commentsAreGlosses && state is CandidateBarState.ChineseCandidates,
+                    highlightIndex = (state as? CandidateBarState.ChineseCandidates)?.highlightIndex ?: 0,
+                    // 纯联想：高亮跟着「下一项」走，没有高亮时一个都不标（和原来的联想行一样）。
+                    associationHighlight = (state as? CandidateBarState.AssociationOnly)?.highlightIndex
+                        ?.takeUnless { previewAssociations },
+                    showNumberLabels = showNumberLabels,
+                    gapWindowX = splitGapX,
+                    scrollable = state is CandidateBarState.ChineseCandidates && !isGlidePreview,
+                    // 开了「候选滑到头回弹展开」：栏里只排一屏（11-22 他：「一个屏幕就是一页」）——一开始露出来的候选，
+                    // 加上栏尾露半截的那一个；把它露全就到头，再往左拉就展开。不用滑完「每页候选词数」那 20 个（群里：「划到头太费时间」）。
+                    // 一屏没排满（平板宽屏）时接上展开列表把这一屏填满，多出来的照样不排，尾巴不会越滑越远。
+                    // 也不因为滑了一下收起展开页：展开、收回只靠拉。
+                    firstScreenOnly = swipeExpand,
+                    onUserScroll = callbacks.onCandidateStripScrolled.takeUnless { swipeExpand },
+                    onNearEnd = callbacks.onCandidateStripNearEnd,
+                    scrollKey = (state as? CandidateBarState.ChineseCandidates)?.let { it.inputText to it.candidates.firstOrNull() },
+                    itemPadding = candidateItemPadding,
+                )
+                }
+            } else if (state !is CandidateBarState.Idle) PullToExpandCandidates(pullExpands, { pullExpand?.invoke() },
+                protectedVisuals.textColor, Modifier.weight(1f), leadingGap = pullLeadingGap) { BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val showComments = candidateCommentsVisible(maxWidth.value, density.fontScale,
+                    candidateTextSize.toFloat(), commentsAllowed)
+                val showDividers = candidateDividersShown(4.dp, candidateItemPadding)
+                val itemDividerColor = candidateDividerColor(protectedVisuals.textColor)
+                // 开了「候选滑到头回弹展开」，上屏后的纯联想也只排一屏（11-22 他）：露全的几个加栏尾露半截的那一个，
+                // 露全它就到头，再往左拉就展开。键盘「下一项」在联想里走时照旧全排。
+                val capAssociations = swipeExpand && displayCandidates.isEmpty() && associationHighlight == null
+                val associationFitting = rememberFirstScreenCount(displayAssociation, capAssociations,
+                    constraints.maxWidth, candidateTextSize.sp, candidateFontFamily, candidateItemPadding, 4.dp,
+                    numbered = showNumberLabels && state is CandidateBarState.AssociationOnly)
+                val associationShown = (associationFitting + 1).coerceAtMost(displayAssociation.size)
+                // 联想全都放得下：拉不开（见 barShowsAll）。
+                val allFit = capAssociations && displayAssociation.isNotEmpty() && associationFitting >= displayAssociation.size
+                SideEffect { associationsAllFit = allFit }
+                val rowAssociation = if (associationShown < displayAssociation.size)
+                    displayAssociation.subList(0, associationShown) else displayAssociation
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    state = candidateListState,
+                    flingBehavior = rememberCandidateFlingBehavior(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    overscrollEffect = null,
+                ) {
+                    itemsIndexed(displayCandidates, key = { index, _ -> index }) { index, candidate ->
+                        CandidateItem(
+                            text = candidate,
+                            index = index,
+                            onClick = { callbacks.onCandidateSelect(index) },
+                            onLongClick = if (callbacks.onCandidateLongPress != null) {
+                                { callbacks.onCandidateLongPress(index) }
+                            } else null,
+                            textColor = protectedVisuals.textColor,
+                            comment = if (showComments) {
+                                when (val s = state) {
+                                    is CandidateBarState.ChineseCandidates -> s.comments.getOrElse(index) { "" }
+                                    is CandidateBarState.EnglishCandidates -> s.comments.getOrElse(index) { "" }
+                                    else -> ""
+                                }
+                            } else "",
+                            isSelected = index == 0,
+                            accentColor = protectedVisuals.accentColor,
+                            selectedTextColor = protectedVisuals.selectedTextColor,
+                            opaqueComment = protectedVisuals.opaqueComments,
+                            textShadow = protectedVisuals.textShadow,
+                            fontSize = candidateTextSize.sp,
+                            candidateFontFamily = candidateFontFamily,
+                            commentFontFamily = commentFontFamily,
+                            learned = state is CandidateBarState.ChineseCandidates && candidate in LocalLearnedCandidates.current,
+                            correction = if (showComments && state is CandidateBarState.ChineseCandidates) LocalCorrectedCandidates.current[candidate].orEmpty() else "",
+                            modifier = if (showDividers && index > 0) Modifier.candidateLeadingDivider(itemDividerColor,
+                                4.dp, candidateTextSize.sp) else Modifier,
+                            horizontalPadding = candidateItemPadding,
+                        )
+                    }
+
+                    // 仅当左侧存在打字候选时才需要分隔线；纯联想态（无打字候选）下
+                    // 该竖线会孤悬列表最左缘，属多余元素。
+                    // 注意：分隔线在条件内，联想词 items 必须在条件外——纯联想态
+                    // displayCandidates 为空，若一并包进条件会导致联想词整个不渲染。
+                    if (displayCandidates.isNotEmpty() && displayAssociation.isNotEmpty()) {
+                        item(key = "divider") {
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(20.dp)
+                                    .background(protectedVisuals.dividerColor.copy(alpha = 0.5f))
+                                    .padding(horizontal = 4.dp)
+                            )
+                        }
+                    }
+
+                    itemsIndexed(rowAssociation, key = { index, _ -> "assoc-$index" }) { index, candidate ->
+                        val assocState = state as? CandidateBarState.AssociationOnly
+                        CandidateItem(
+                            text = candidateNumberedText(candidate, index, showNumberLabels && assocState != null),
+                            index = -1,
+                            onClick = { callbacks.onAssociationSelect?.invoke(index) },
+                            textColor = protectedVisuals.textColor,
+                            comment = if (showComments) displayComments.getOrElse(index) { "" } else "",
+                            isSelected = assocState?.highlightIndex == index,
+                            accentColor = protectedVisuals.accentColor,
+                            selectedTextColor = protectedVisuals.selectedTextColor,
+                            opaqueComment = protectedVisuals.opaqueComments,
+                            textShadow = protectedVisuals.textShadow,
+                            fontSize = candidateTextSize.sp,
+                            candidateFontFamily = candidateFontFamily,
+                            commentFontFamily = commentFontFamily,
+                            modifier = Modifier.testTag("bar-association:$index").then(
+                                if (showDividers && index > 0) Modifier.candidateLeadingDivider(itemDividerColor,
+                                    4.dp, candidateTextSize.sp) else Modifier),
+                            horizontalPadding = candidateItemPadding,
+                        )
+                    }
+                }
+            } }
+
+            if (state !is CandidateBarState.Idle) Spacer(modifier = Modifier.width(8.dp))
+
+            when {
+                state is CandidateBarState.Idle -> {
+                    // 显示内联建议时隐藏工具栏按钮区，把宽度让给建议；logo 与
+                    // 收起按钮保留，退格回到 idle 时的状态感知不变
+                    if (inlineSuggestions.isEmpty() && splitGapX != null) {
+                        // 分体：图标按两侧宽度比例分到中缝左右，各自整格可点。
+                        val editor = LocalInlineQuickActionEditor.current
+                        SplitGapRow(splitGapX, Modifier.weight(1f).fillMaxHeight().onGloballyPositioned {
+                            editor?.toolbarArea = it.boundsInRoot()
+                        }, left = { leftWidth, rightWidth ->
+                            ToolbarHalf(toolbarActions, protectedVisuals, iconButtonTint, voiceAmplitude, voiceRecognitionState,
+                                callbacks.onReorderToolbar, leftWidth, rightWidth, rightSide = false)
+                        }, right = { leftWidth, rightWidth ->
+                            ToolbarHalf(toolbarActions, protectedVisuals, iconButtonTint, voiceAmplitude, voiceRecognitionState,
+                                callbacks.onReorderToolbar, leftWidth, rightWidth, rightSide = true)
+                        })
+                    } else if (inlineSuggestions.isEmpty()) {
+                        val editor = LocalInlineQuickActionEditor.current
+                        ReorderableToolbar(toolbarActions, protectedVisuals.accentColor, callbacks.onReorderToolbar,
+                            modifier = Modifier.weight(1f).onGloballyPositioned {
+                                editor?.toolbarArea = it.boundsInRoot()
+                            }) { action ->
+                            ToolbarActionButton(action, protectedVisuals, iconButtonTint, voiceAmplitude, voiceRecognitionState,
+                                modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+
+                    val editor = LocalInlineQuickActionEditor.current
+                    if (editor?.active == true && callbacks.onSaveQuickActions != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        KeyboardToolbarButton(callbacks.onSaveQuickActions, iconButtonContainer,
+                            modifier = Modifier.testTag("toolbar-save").onGloballyPositioned {
+                                editor.saveBounds = it.boundsInRoot()
+                            }, slotWidth = toolbarSlot) {
+                            Icon(Icons.Default.Check, contentDescription = "保存排列", tint = protectedVisuals.textColor,
+                                modifier = Modifier.size(24.dp))
+                        }
+                    } else if (page is KeyboardPage.Overlay && page.route is OverlayRoute.Menu &&
+                        callbacks.onEditQuickActions != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        KeyboardToolbarButton(callbacks.onEditQuickActions, iconButtonContainer,
+                            modifier = Modifier.testTag("toolbar-edit"), slotWidth = toolbarSlot) {
+                            Icon(Icons.Default.Edit, contentDescription = "编辑排列", tint = protectedVisuals.textColor,
+                                modifier = Modifier.size(22.dp))
+                        }
+                    } else if (callbacks.onHideKeyboard != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        HideKeyboardButton(callbacks.onHideKeyboard, iconButtonContainer, isVoiceSticky,
+                            protectedVisuals.textColor, toolbarSlot)
+                    }
+                }
+                !candidatePageExpanded && displayAssociation.isNotEmpty() && callbacks.onClearAssociation != null && callbacks.onCancelInput == null -> {
+                    val clearInteractionSource = remember { MutableInteractionSource() }
+                    val isClearPressed by clearInteractionSource.collectIsPressedAsState()
+
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(28.dp)
+                            .background(protectedVisuals.dividerColor).padding(end = 1.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(30.dp)
+                            .height(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (isClearPressed) (if (protectedVisuals.isDarkTheme) Color.White.copy(alpha = 0.15f) else Color.Black.copy(
+                                    alpha = 0.1f
+                                ))
+                                else Color.Transparent
+                            )
+                            .clickable(
+                                interactionSource = clearInteractionSource,
+                                indication = null,
+                                onClick = { callbacks.onClearAssociation() }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "清空",
+                            color = if (isClearPressed) protectedVisuals.textColor.copy(alpha = 0.6f) else protectedVisuals.textColor,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+            // 打字时候选栏只放候选：亮着的开关（悬浮、繁体、全角等）只在空闲工具栏里显示，
+            // 不再挤到候选右边（11-03：悬浮键盘里一直多一个蓝色悬浮按钮，候选只剩一个）。
+            // 右边 ▾ 展开、▴ 收回，同 1.15.101（11-21 恢复）。
+            // 「右边一处关」（11-22 他定）：右边那一格先是 ×，关掉候选或联想后同一格是收起键盘，不放 ▾/▴，展开、收回只靠滑。
+            // 「经典」开了左右滑也照旧放 ▾/▴，滑只是多一种展开办法（11-23）。别的宿主（没有「<」时）右边放「清空」，这时不再放收起。
+            val rightClearShown = !candidatePageExpanded && displayAssociation.isNotEmpty() &&
+                callbacks.onClearAssociation != null && callbacks.onCancelInput == null
+            if (rightCloses) {
+                if (closeAtRight) {
+                    // 和下面收起键盘、空闲时的收起键同一格：同一个位置先关候选／联想，再点就收起键盘。
+                    KeyboardToolbarButton({ callbacks.onCancelInput?.invoke() }, edgePressedFill,
+                        modifier = Modifier.testTag("candidate-close-right"), restingFill = edgeButtonFill,
+                        slotWidth = edgeSlot, cornerRadius = edgeCorner, continuousPill = true) {
+                        Icon(Icons.Default.Close, contentDescription = if (closesAssociation) "关闭联想" else "取消输入",
+                            tint = protectedVisuals.textColor, modifier = Modifier.size(22.dp * LocalCandidateSizeFactor.current))
+                    }
+                } else if (state !is CandidateBarState.Idle && !rightClearShown && callbacks.onHideKeyboard != null) {
+                    KeyboardToolbarButton(callbacks.onHideKeyboard, edgePressedFill,
+                        modifier = Modifier.testTag("candidate-hide"), restingFill = edgeButtonFill,
+                        slotWidth = edgeSlot, cornerRadius = edgeCorner, continuousPill = true) {
+                        Icon(if (isVoiceSticky) Icons.Default.KeyboardDoubleArrowDown else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isVoiceSticky) "收起成悬浮条" else "收起键盘",
+                            tint = protectedVisuals.textColor, modifier = Modifier.size(24.dp * LocalCandidateSizeFactor.current))
+                    }
+                }
+            } else if (state !is CandidateBarState.Idle && (candidatePageExpanded || hasAnyMore || isGlidePreview)) {
+                val action = if (candidatePageExpanded) callbacks.onBack else callbacks.onShowMoreCandidates
+                action?.let {
+                    if (isGlidePreview && !candidatePageExpanded && !hasAnyMore) {
+                        Spacer(Modifier.width(edgeSlot ?: 40.dp))
+                    } else {
+                        CandidateExpansionButton(it, edgePressedFill, protectedVisuals.accentColor,
+                            expanded = candidatePageExpanded, rotation = expansionRotation, restingFill = edgeButtonFill,
+                            slotWidth = edgeSlot, cornerRadius = edgeCorner, continuousPill = true)
+                    }
+                }
+            }
+        }
+        }
+    }
+    }
+}
+
+/** 收起键盘；语音听写中收起成底部悬浮条，语音继续。 */
+@Composable
+private fun HideKeyboardButton(
+    onHide: () -> Unit,
+    background: Color,
+    isVoiceSticky: Boolean,
+    tint: Color,
+    slotWidth: androidx.compose.ui.unit.Dp?,
+) {
+    KeyboardToolbarButton(onHide, background, modifier = Modifier.testTag("toolbar-hide"), slotWidth = slotWidth) {
+        Icon(if (isVoiceSticky) Icons.Default.KeyboardDoubleArrowDown else Icons.Default.KeyboardArrowDown,
+            contentDescription = if (isVoiceSticky) "收起成悬浮条" else "收起键盘",
+            tint = tint, modifier = Modifier.size(24.dp * LocalCandidateSizeFactor.current))
+    }
+}
+
+/**
+ * 工具栏一格里的胶囊：随格宽向两边拉长（参照 Gboard 大屏），窄格退为圆。
+ * 中间按钮的按下/开启底色、菜单与收起按钮的底色、拖动排序的外框共用这一尺寸。
+ */
+internal fun toolbarPillSize(slot: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.DpSize {
+    // 高 32dp，在 44dp 的栏里上下各留 6dp；窄格（悬浮小窗）缩成圆，左右至少留 4dp，不压面板边框。
+    val width = (slot - 12.dp).coerceIn(28.dp, 112.dp)
+    return if (width > 40.dp) androidx.compose.ui.unit.DpSize(width, 32.dp)
+        else androidx.compose.ui.unit.DpSize(minOf(width, 32.dp), minOf(width, 32.dp))
+}
+
+@Composable
+internal fun ToolbarActionButton(
+    action: ToolbarAction, visuals: CandidateBarVisuals, tint: Color,
+    amplitude: Float, voiceState: RecognitionState,
+    source: MutableInteractionSource = remember { MutableInteractionSource() },
+    modifier: Modifier = Modifier,
+) {
+    val inlineEditor = LocalInlineQuickActionEditor.current
+    val voiceActive = action.active && action.item.id == "voice"
+    // 外圈（胶囊底色）固定，内圈只跟随实时音量；峰值按分贝映射，正常说话也能明显撑开。
+    val voiceLevel by animateFloatAsState(
+        if (voiceActive && voiceState == RecognitionState.LISTENING) microphoneLevel(amplitude) else 0f,
+        animationSpec = tween(100), label = "microphoneLevel")
+    val pressed by source.collectIsPressedAsState()
+    // Hover/focus events must not cancel a release fade and leave a permanent glow.
+    val pressAlpha by animateFloatAsState(if (pressed) 1f else 0f,
+        animationSpec = tween(if (pressed) 0 else 300), label = "toolbar-press")
+    // The disc appears only while pressed or on (no resting disc, glass or not). Under glass
+    // the active tool is filled solidly with an inverted glyph; voice keeps its pulsing glow.
+    val glassActiveFill = visuals.glassControlBackground?.takeIf { action.active && !voiceActive }?.let { fill ->
+        val surface = fill.copy(alpha = 1f)
+        if (textContrast(visuals.accentColor, surface) >= 3f) visuals.accentColor.copy(alpha = 1f) else tint.copy(alpha = 1f)
+    }
+    val iconTint = when {
+        glassActiveFill != null -> if (glassActiveFill.luminance() > 0.5f) Color.Black else Color.White
+        action.active -> visuals.accentColor
+        else -> tint
+    }
+    // 大屏参照 Gboard：整格都可点，按下/开启的底色是随格宽向两边拉长的胶囊；窄格仍是圆形。
+    val listening = voiceActive && voiceState == RecognitionState.LISTENING
+    // 液态玻璃：胶囊露出来时（开启常亮，按下随底色淡出）加按键同款细亮边；听写音量光圈不加。
+    val liquidEdge = com.kingzcheung.xime.ui.theme.LiquidGlass.surfacesOn() && !listening
+    val pressMenu = action.pressMenu
+    val pressMenuState = remember { ToolbarPressMenuState() }
+    val pressMenuScope = rememberCoroutineScope()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val currentPressMenu by rememberUpdatedState(pressMenu)
+    val currentClick by rememberUpdatedState(action.onClick)
+    BoxWithConstraints(
+        modifier.widthIn(min = 36.dp).height(40.dp).inlineQuickActionTarget(action.item.id)
+            .graphicsLayer { alpha = if (inlineEditor?.dragging == action.item.id) 0f else 1f }
+            // 音量光圈画在不裁切的外层：始终正圆、比图标大，宽格也不会被拉成胶囊。
+            .then(if (listening) Modifier.microphoneLevelHalo({ voiceLevel }, visuals.accentColor) else Modifier)
+            .semantics {
+                selected = action.active
+                if (voiceActive) stateDescription = if (voiceState == RecognitionState.PROCESSING) "正在转录" else "正在聆听，点击结束"
+            }
+            .then(if (inlineEditor?.active == true) Modifier else if (pressMenu != null) Modifier.toolbarPressMenu({ currentPressMenu }, pressMenuState, source, pressMenuScope,
+                onLongPress = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) },
+                onClick = { currentClick() })
+            else Modifier.clickable(interactionSource = source, indication = null, onClick = action.onClick)),
+        contentAlignment = Alignment.Center,
+    ) {
+    if (pressMenu != null) ToolbarPressMenuPopup(pressMenuState)
+    Box(
+        Modifier.inlineQuickActionMotion(action.item.id).testTag("toolbar-visual:${action.item.id}")
+            .size(if (listening) androidx.compose.ui.unit.DpSize(36.dp, 36.dp) else toolbarPillSize(maxWidth))
+            .clip(CircleShape)
+            .background(if (listening) Color.Transparent else glassActiveFill ?: visuals.glassControlBackground?.let { fill ->
+                if (action.active) androidx.compose.ui.graphics.lerp(fill, visuals.accentColor, 0.18f).copy(alpha = fill.alpha)
+                else fill.copy(alpha = fill.alpha * pressAlpha)
+            } ?: if (action.active) visuals.accentColor.copy(alpha = 0.28f)
+                else if (visuals.isDarkTheme) Color.White.copy(alpha = 0.25f * pressAlpha)
+                else Color(0xFFE0E0E0).copy(alpha = pressAlpha))
+            .then(if (liquidEdge) Modifier.liquidGlassEdge(CAPSULE_RADIUS) { if (action.active) 1f else pressAlpha }
+                else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (voiceActive && voiceState == RecognitionState.PROCESSING) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(36.dp), color = visuals.accentColor, strokeWidth = 2.dp)
+        }
+        ToolbarButtonIcon(action.item, tint = iconTint, modifier = Modifier.size(22.dp * LocalCandidateSizeFactor.current), active = action.active)
+    }
+    }
+}
+
+/** 胶囊的圆角：比任何胶囊的半高都大，细亮边按半高画成全圆头。 */
+private val CAPSULE_RADIUS = 999.dp
+
+/** 麦克风峰值（0~1 线性）转成 0~1 的显示音量：-50 dB 以下当静音，-15 dB 以上算满，小声说话也能明显撑开。 */
+internal fun microphoneLevel(peak: Float): Float {
+    if (peak <= 0f) return 0f
+    val db = 20f * kotlin.math.log10(peak.coerceAtMost(1f))
+    return ((db + 50f) / 35f).coerceIn(0f, 1f)
+}
+
+/**
+ * 麦克风音量光圈：以控件中心画正圆，静音 30dp（比 22dp 图标大一圈），满音量 42dp。
+ * 展开键盘的工具栏和收起后的悬浮条共用，外观一致。
+ */
+internal fun Modifier.microphoneLevelHalo(level: () -> Float, color: Color): Modifier = drawBehind {
+    val value = level()
+    drawCircle(color.copy(alpha = 0.30f + 0.30f * value), radius = (30.dp.toPx() + 12.dp.toPx() * value) / 2f)
+}
+
+@Composable
+private fun ClipboardPreviewBar(
+    candidates: List<String>,
+    visuals: CandidateBarVisuals,
+    callbacks: CandidateBarCallbacks,
+    iconButtonContainer: Color,
+    image: com.kingzcheung.xime.clipboard.ClipboardImage? = null,
+    /** [candidates] 开头这几项是提取出来的链接、长数字：单独放在前面的短胶囊，后面的长胶囊放原文（用户 11-08）。 */
+    extractedCount: Int = 0,
+) {
+    val previews = remember(candidates) { candidates.map { it.replace(Regex("[\\r\\n]+"), " ") } }
+    // 有图片时照旧只有图片那一个胶囊。
+    val splitAt = if (image != null) 0 else extractedCount.coerceIn(0, previews.size)
+    val extracted = previews.subList(0, splitAt)
+    val originals = previews.subList(splitAt, previews.size)
+    val textMeasurer = rememberTextMeasurer()
+    val textStyle = LocalTextStyle.current.merge(TextStyle(fontSize = 15.sp))
+    val density = LocalDensity.current
+    val tallestPreviewPx = previews.maxOfOrNull {
+        textMeasurer.measure(it.take(80), style = textStyle, maxLines = 1, softWrap = false).size.height
+    } ?: 0
+    val verticalTextPadding = with(density) { ((44.dp - tallestPreviewPx.toDp()) / 2).coerceIn(0.dp, 7.dp) }
+    val capsuleColor = visuals.preeditBackgroundColor.takeIf { it != Color.Unspecified }
+        ?: MaterialTheme.colorScheme.surfaceContainer
+    val liquidEdge = com.kingzcheung.xime.ui.theme.LiquidGlass.surfacesOn()
+    val capsuleModifier = Modifier.heightIn(min = 36.dp)
+        .clip(CircleShape)
+        .background(capsuleColor)
+        // 液态玻璃：强调色描边换成按键同款细亮边。
+        .then(if (liquidEdge) Modifier.liquidGlassEdge(CAPSULE_RADIUS)
+            else Modifier.border(1.dp, visuals.accentColor.copy(alpha = 0.45f), CircleShape))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        KeyboardBackButton({ callbacks.onDismissClipboardPreview?.invoke() },
+            iconButtonContainer, visuals.textColor, label = "返回工具栏")
+        BoxWithConstraints(Modifier.weight(1f).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+            val itemGapPx = with(density) { 16.dp.roundToPx() }
+            /** 一串预览排成一行要多宽；超过 [limitPx] 或有很长的一项就按 [limitPx] 算（反正要横滑）。 */
+            fun rowTextWidth(items: List<String>, limitPx: Int): Int {
+                var width = 0
+                for ((index, preview) in items.withIndex()) {
+                    if (width >= limitPx || preview.length > 80) return limitPx
+                    val itemWidth = textMeasurer.measure(preview, style = textStyle,
+                        maxLines = 1, softWrap = false).size.width
+                    width = (width + itemWidth + if (index == 0) 0 else itemGapPx).coerceAtMost(limitPx)
+                }
+                return width
+            }
+            // Reserve space for both icons and the scroll area's padding. Short previews
+            // size the capsule to their text; long previews keep the full scroll viewport.
+            val chromeWidth = 82.dp
+            val extractedChrome = 24.dp
+            val availablePx = with(density) { maxWidth.roundToPx() }
+            val capsuleGapPx = if (extracted.isEmpty()) 0 else with(density) { CLIPBOARD_CAPSULE_GAP.roundToPx() }
+            val chromePx = with(density) { chromeWidth.roundToPx() }
+            val extractedChromePx = with(density) { extractedChrome.roundToPx() }
+            val originalWantPx = chromePx + if (image != null) with(density) { 64.dp.roundToPx() }
+                .coerceAtMost((availablePx - chromePx).coerceAtLeast(0)) else rowTextWidth(originals, availablePx)
+            val extractedWantPx = if (extracted.isEmpty()) 0 else extractedChromePx + rowTextWidth(extracted, availablePx)
+            val (extractedWidthPx, originalWidthPx) = clipboardCapsuleWidths(availablePx, capsuleGapPx, extractedWantPx, originalWantPx)
+            Row(horizontalArrangement = Arrangement.spacedBy(CLIPBOARD_CAPSULE_GAP), verticalAlignment = Alignment.CenterVertically) {
+                if (extracted.isNotEmpty()) {
+                    // 前面的短胶囊：提取出来的链接、长数字，太长同样可以左右拖着看。
+                    LazyRow(capsuleModifier.width(with(density) { extractedWidthPx.toDp() })
+                        .testTag("clipboard-extracted-pill").padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, overscrollEffect = null) {
+                        itemsIndexed(extracted) { index, preview ->
+                            Text(preview, color = visuals.accentColor, fontSize = 15.sp, maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.testTag("clipboard-preview-text:$index")
+                                    .clickable { callbacks.onCandidateSelect(index) }
+                                    .padding(vertical = verticalTextPadding, horizontal = if (index == 0) 0.dp else 8.dp))
+                        }
+                    }
+                }
+                Row(
+                    capsuleModifier.width(with(density) { originalWidthPx.toDp() }).testTag("clipboard-preview-pill")
+                        .padding(start = 12.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.ContentPaste, contentDescription = null,
+                        tint = visuals.textColor, modifier = Modifier.size(18.dp * LocalCandidateSizeFactor.current))
+                    if (image != null) {
+                        ClipboardImagePreview(image,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                            onPaste = { callbacks.onClipboardImageSelect?.invoke(image) })
+                    } else LazyRow(Modifier.weight(1f).padding(horizontal = 8.dp).testTag("clipboard-preview-scroll"),
+                        overscrollEffect = null) {
+                        itemsIndexed(originals) { index, preview ->
+                            // 预览可横向滚动全部内容；换行仅在显示时折成空格，粘贴仍使用原文。
+                            val candidateIndex = splitAt + index
+                            Text(preview, color = visuals.textColor, fontSize = 15.sp, maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.testTag("clipboard-preview-text:$candidateIndex")
+                                    .clickable { callbacks.onCandidateSelect(candidateIndex) }
+                                    .padding(vertical = verticalTextPadding, horizontal = if (index == 0) 0.dp else 8.dp))
+                        }
+                    }
+                    Box(Modifier.size(30.dp).clip(CircleShape)
+                        .then(if (image != null) Modifier.testTag("clipboard-image-more") else Modifier)
+                        .clickable {
+                            (callbacks.onOpenClipboard ?: if (image != null) callbacks.onExpandClipboardImages else null)?.invoke()
+                        },
+                        contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "打开剪贴板",
+                            tint = visuals.accentColor, modifier = Modifier.size(22.dp * LocalCandidateSizeFactor.current))
+                    }
+                }
+            }
+        }
+        if (callbacks.onHideKeyboard != null) {
+            KeyboardToolbarButton(callbacks.onHideKeyboard, iconButtonContainer,
+                modifier = Modifier.testTag("toolbar-hide")) {
+                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "收起键盘",
+                    tint = visuals.textColor, modifier = Modifier.size(24.dp * LocalCandidateSizeFactor.current))
+            }
+        } else {
+            Spacer(Modifier.size(40.dp))
+        }
+    }
+}
+
+private val CLIPBOARD_CAPSULE_GAP = 8.dp
+
+/**
+ * 剪贴板两个胶囊各占多宽（像素）：放得下就各按内容宽；放不下时提取胶囊最多拿 40%（原文短就多给它一些），
+ * 剩下的给原文胶囊，两边内容多出来的都靠左右拖着看。没有提取项时提取胶囊为 0，原文胶囊和以前一样。
+ */
+internal fun clipboardCapsuleWidths(availablePx: Int, gapPx: Int, extractedWantPx: Int, originalWantPx: Int): Pair<Int, Int> {
+    if (extractedWantPx <= 0) return 0 to originalWantPx.coerceIn(0, availablePx.coerceAtLeast(0))
+    val room = (availablePx - gapPx).coerceAtLeast(0)
+    if (extractedWantPx + originalWantPx <= room) return extractedWantPx to originalWantPx
+    val extractedCap = maxOf((room * 0.4f).toInt(), room - originalWantPx)
+    val extracted = extractedWantPx.coerceAtMost(extractedCap)
+    return extracted to (room - extracted).coerceAtMost(originalWantPx)
+}
+
+/** Use the exact same explicit primary style for rendering and width measurement. */
+internal fun candidatePrimaryTextStyle(
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    fontFamily: androidx.compose.ui.text.font.FontFamily,
+    isSelected: Boolean,
+) = TextStyle(
+    fontSize = fontSize,
+    fontFamily = fontFamily,
+    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+    lineHeight = (fontSize.value * 1.35f).sp,
+    platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+)
+
+/** 长候选缩到两行时：同一字体，行距收紧，量宽和绘制共用。 */
+internal fun candidateTwoLineTextStyle(primary: TextStyle, fontSize: androidx.compose.ui.unit.TextUnit) =
+    primary.copy(fontSize = fontSize, lineHeight = (fontSize.value * CANDIDATE_TWO_LINE_SPACING).sp)
+
+/** 当前候选中用户以前打过的词（按文字），由键盘根部提供。 */
+internal val LocalLearnedCandidates = androidx.compose.runtime.compositionLocalOf<Set<String>> { emptySet() }
+internal val LocalCorrectedCandidates = androidx.compose.runtime.compositionLocalOf<Map<String, String>> { emptyMap() }
+internal val LocalCorrectionFullScheme = androidx.compose.runtime.compositionLocalOf<com.kingzcheung.xime.settings.DoublePinyinScheme?> { null }
+/** 「紧贴候选上方」小签用的纠错读音：不受「显示纠错标记」影响，由键盘根部提供。 */
+internal val LocalPreeditLineCorrections = androidx.compose.runtime.compositionLocalOf<Map<String, String>> { emptyMap() }
+/** 「拼音显示声调」用的读音表：开关关着、表还没读完、双拼显示按键时为 null（不标调），由键盘根部提供。 */
+internal val LocalPreeditToneData = androidx.compose.runtime.compositionLocalOf<com.kingzcheung.xime.rime.PinyinTones.Data?> { null }
+/** 气泡和小签画拼音时套上的标调（按高亮候选的读音），null 时原样，见 [PreeditLabel]。 */
+internal val LocalPreeditToneText = androidx.compose.runtime.compositionLocalOf<((String) -> String)?> { null }
+
+/** 换成同样长度的文字（标调只把元音换成带调字母），颜色、光标这些按位置的样式原样保留。 */
+internal fun AnnotatedString.withSameLengthText(transform: (String) -> String): AnnotatedString {
+    val replaced = transform(text)
+    return if (replaced == text || replaced.length != text.length) this else AnnotatedString(replaced, spanStyles, paragraphStyles)
+}
+
+/** 候选行的高度（44dp），两行长候选按它收字号。 */
+internal val LocalCandidateRowHeight = androidx.compose.runtime.staticCompositionLocalOf { 44.dp }
+/** 「紧贴候选上方」小签：高 26dp、拼音 16sp（11-20 他定：16sp 才够、要点得到），跟「候选字大小」一起缩放。 */
+internal val PREEDIT_TAB_HEIGHT = 26.dp
+/** 「贴边方块」的高度（11-21，照他第二张图：比小签高，字和气泡一样大）。 */
+internal val PREEDIT_BLOCK_HEIGHT = 36.dp
+internal const val PREEDIT_TAB_TEXT_SP = 16f
+
+/**
+ * 拼音贴在键盘上沿时（小标签、方块、整行），输入框要往上让开这么多像素（11-21 他：「还是挡住的,根本没抬高输入框」）。
+ * 只由输入法自己的 [KeyboardView] 写，[com.kingzcheung.xime.service.XimeInputMethodService.onComputeInsets] 读：
+ * 固定键盘报给应用的顶线往上提这一截。选了这三种就一直留着，不是打字时才留，免得每打一个词应用就上下跳一次。
+ */
+internal object PreeditTabInsets {
+    @Volatile var reservePx: Int = 0
+}
+
+/** 「整行」时键盘加高的那一行有多高（dp，真实尺寸，不跟候选栏放大）。和小签同高，字 16sp，点得到。 */
+internal const val PREEDIT_STRIP_ROW_DP = 26
+
+/**
+ * 键盘给「整行」留的那一行（dp）；没选整行，或这时排不进键盘里（[available] 为 false：悬浮键盘转了角度改用气泡、
+ * 手写全屏、实体键盘的小条、语音收起、调节尺寸中）时是 0。窗口高度（服务）和候选栏里画的那一行用同一个数。
+ */
+internal fun preeditStripRowDp(prefs: KeyboardInputPreferences, available: Boolean): Int =
+    if (available && prefs.preeditOnTopLine && prefs.preeditStyle == SettingsPreferences.PREEDIT_STYLE_STRIP) PREEDIT_STRIP_ROW_DP else 0
+
+/** 键盘留给「整行」拼音的高度（真实 dp）；只有键盘本身的主候选栏读到非 0，别处的候选栏照旧。 */
+internal val LocalPreeditStripRow = androidx.compose.runtime.staticCompositionLocalOf { 0.dp }
+
+/** 小签、整行里显示的拼音：首选是纠错来的就显示纠正后的读音（改动的字母标红），否则是拼音（拖选的那段标出来）。第二个值：是不是纠错。 */
+@Composable
+private fun preeditLineLabel(state: CandidateBarState, preeditText: String, textColor: Color,
+    accentColor: Color): Pair<androidx.compose.ui.text.AnnotatedString, Boolean> {
+    val highlighted = (state as? CandidateBarState.ChineseCandidates)?.let { it.candidates.getOrNull(it.highlightIndex) }
+    val corrected = highlighted?.let { LocalPreeditLineCorrections.current[it] }.orEmpty()
+    return if (corrected.isNotEmpty()) correctionAnnotatedString(corrected, textColor, LocalCorrectionFullScheme.current) to true
+        else sentenceSelectionText(preeditText, LocalSentenceSelection.current.value, accentColor) to false
+}
+
+/**
+ * 「整行」的拼音：画在键盘里候选栏上面那一行，没有自己的底色、圆角和描边（底就是键盘），字色和候选字一样。
+ * 拼音按 [align] 靠左、居中或靠右，长句只露出正在打的结尾。整行都能点开拼音编辑，编辑条从这一行渐渐长成原样。
+ */
+@Composable
+private fun PreeditStripRow(text: androidx.compose.ui.text.AnnotatedString, textColor: Color, align: String,
+    horizontalInset: androidx.compose.ui.unit.Dp, onEdit: ((Int?) -> Unit)?, corrected: Boolean) {
+    val bounds = remember { mutableStateOf<IntRect?>(null) }
+    val tap = remember { PreeditTapPoint() }
+    val slop = with(LocalDensity.current) { PreeditTapSlop.toPx() }
+    val sizeSp = PREEDIT_TAB_TEXT_SP * LocalCandidateSizeFactor.current
+    val barScale = LocalCandidateBarScale.current
+    val origin = LocalPreeditOrigin.current
+    val edit: (() -> Unit)? = onEdit?.let { open -> {
+        // 编辑条在候选栏外面、不跟候选栏放大，字号按放大后的实际大小记。
+        origin?.value = bounds.value?.let { PreeditOrigin(it, Color.Transparent, sizeSp * barScale) }
+        // 纠错读音和打的字母不是一回事，对不上位置，光标照旧。
+        open(if (corrected) null else tap.lettersBefore(slop))
+    } }
+    val placed = bounds.value
+    Box(Modifier.fillMaxSize()
+        .onGloballyPositioned { coordinates ->
+            val r = coordinates.boundsInWindow()
+            val next = IntRect(r.left.roundToInt(), r.top.roundToInt(), r.right.roundToInt(), r.bottom.roundToInt())
+            if (bounds.value != next) bounds.value = next
+        }
+        .then(if (edit != null) tap.record().clickable(role = Role.Button, onClickLabel = "编辑拼音", onClick = edit) else Modifier)
+        .padding(horizontal = horizontalInset).testTag("preedit-strip")
+        .then(if (placed != null) Modifier.semantics { this[PreeditPopupBoundsKey] = placed } else Modifier),
+        contentAlignment = when (align) {
+            SettingsPreferences.PREEDIT_ALIGN_RIGHT -> Alignment.CenterEnd
+            SettingsPreferences.PREEDIT_ALIGN_CENTER -> Alignment.Center
+            else -> Alignment.CenterStart
+        }) {
+        Text(text, color = textColor, fontSize = sizeSp.sp, maxLines = 1, softWrap = false,
+            overflow = TextOverflow.StartEllipsis, onTextLayout = tap::layout,
+            modifier = tap.textModifier().testTag(if (corrected) "preedit-tab-correction" else "preedit-tab-text"))
+    }
+}
+
+private val CorrectionRed = Color(0xFFE53935)
+
+/** 纠错候选的拼音只显示改正后的读音（所打字母已在输入框里），改动的字母标红：补上的、换成的、对调的；多打的不再显示。 */
+internal fun correctionAnnotatedString(marks: String, plain: Color,
+    fullScheme: com.kingzcheung.xime.settings.DoublePinyinScheme? = null): androidx.compose.ui.text.AnnotatedString =
+    androidx.compose.ui.text.buildAnnotatedString {
+        val keep = androidx.compose.ui.text.SpanStyle(color = plain)
+        val changed = androidx.compose.ui.text.SpanStyle(color = CorrectionRed)
+        val parsed = if (fullScheme == null) com.kingzcheung.xime.rime.CorrectionMarks.parse(marks)
+            else com.kingzcheung.xime.rime.CorrectionMarks.doublePinyinFull(marks, fullScheme)
+        for (mark in parsed) when (mark) {
+            is com.kingzcheung.xime.rime.CorrectionMark.Keep -> withStyle(keep) { append(mark.letter) }
+            is com.kingzcheung.xime.rime.CorrectionMark.Extra -> Unit
+            is com.kingzcheung.xime.rime.CorrectionMark.Missing -> withStyle(changed) { append(mark.letter) }
+            is com.kingzcheung.xime.rime.CorrectionMark.Replace -> withStyle(changed) { append(mark.correct) }
+            is com.kingzcheung.xime.rime.CorrectionMark.Swap -> withStyle(changed) { append(mark.correct) }
+            com.kingzcheung.xime.rime.CorrectionMark.Gap -> withStyle(keep) { append(' ') }
+        }
+    }
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun CandidateItem(
+    text: String,
+    index: Int,
+    onClick: () -> Unit,
+    textColor: Color,
+    comment: String = "",
+    isSelected: Boolean = false,
+    accentColor: Color = Color(0xFF1A73E8),
+    selectedTextColor: Color = Color(0xFF1A73E8),
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
+    fontSize: androidx.compose.ui.unit.TextUnit = 19.sp,
+    candidateFontFamily: androidx.compose.ui.text.font.FontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+    commentFontFamily: androidx.compose.ui.text.font.FontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+    onLongClick: (() -> Unit)? = null,
+    onSentenceSelection: ((Int, Int) -> Unit)? = null,
+    onSentenceSelectionChange: ((Int, Int) -> Unit)? = null,
+    onSentenceSelectionEnd: (() -> Unit)? = null,
+    opaqueComment: Boolean = false,
+    textShadow: androidx.compose.ui.graphics.Shadow? = null,
+    /** 用户以前打过的词：文字右上角画一个小编辑图标。 */
+    learned: Boolean = false,
+    /** 纠错来的候选：引擎给的逐音节纠正，代替拼音注释标出怎么改的。 */
+    correction: String = "",
+    /** Shift 拖动指着别的候选时由候选栏统一画底色，这里先不画，保证只亮一个。 */
+    selectionFill: Boolean = true,
+    /** 候选栏还没滑动时藏起来的候选：不能点，也不接 Shift 拖动。 */
+    interactive: Boolean = true,
+    /** 左右留白（含在点按范围和选中底色里），见 [rememberCandidateItemPadding]。 */
+    horizontalPadding: androidx.compose.ui.unit.Dp = CANDIDATE_ITEM_PADDING,
+    /** 比整条还宽的长候选缩小后的字号／两行，见 [CandidateFit]；平常为空。 */
+    fit: CandidateFit? = null,
+) {
+    // 登记位置给 Shift 拖动：从 Shift 拖到这里松手，按住 Shift 选它（释义模式上屏英文）。
+    val dropId = remember { Any() }
+    val dragSpace = LocalKeyDragSpace.current
+    val currentClick by rememberUpdatedState(onClick)
+    val currentLongClick by rememberUpdatedState(onLongClick)
+    val currentSentenceSelection by rememberUpdatedState(onSentenceSelection)
+    val currentSentenceSelectionChange by rememberUpdatedState(onSentenceSelectionChange)
+    val currentSentenceSelectionEnd by rememberUpdatedState(onSentenceSelectionEnd)
+    var textLayout by remember(text) { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    var dragSelection by remember(text) { mutableStateOf<IntRange?>(null) }
+    var magnifierPosition by remember(text) { mutableStateOf(androidx.compose.ui.geometry.Offset.Unspecified) }
+    DisposableEffect(dropId) { onDispose { CandidateDropTargets.shared.remove(dropId) } }
+    if (!interactive) SideEffect { CandidateDropTargets.shared.remove(dropId) }
+    Row(
+        modifier = modifier
+            .then(if (interactive) Modifier.onGloballyPositioned {
+                CandidateDropTargets.shared.put(dropId, dragSpace.bounds(it)) { currentClick() } } else Modifier)
+            .height(if (fit?.twoLines == true) maxOf(candidateItemHeight(fontSize), LocalCandidateRowHeight.current - 4.dp)
+                else candidateItemHeight(fontSize))
+            .clip(RoundedCornerShape(5.dp))
+            .background(
+                if (isSelected && selectionFill) accentColor.copy(alpha = 0.2f)
+                else Color.Transparent
+            )
+            .semantics { selected = isSelected }
+            .then(if (interactive) Modifier.combinedClickable(
+                onClick = onClick,
+                onLongClick = if (onSentenceSelection == null) onLongClick else null
+            ) else Modifier)
+            .padding(horizontal = horizontalPadding, vertical = CANDIDATE_ITEM_VERTICAL_PADDING),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val textSize = fit?.fontSize ?: fontSize
+        val twoLineWidth = fit?.takeIf { it.twoLines }?.textWidth
+        val primaryStyle = candidatePrimaryTextStyle(textSize, candidateFontFamily, isSelected).let {
+            if (twoLineWidth != null) candidateTwoLineTextStyle(it, textSize) else it
+        }.copy(shadow = textShadow).withInputTextLocale()
+        Text(
+            text = sentenceCandidateText(text, index, dragSelection, LocalSentenceCandidateHighlight.current, accentColor),
+            modifier = (if (twoLineWidth != null) Modifier.width(with(LocalDensity.current) { twoLineWidth.toDp() })
+                else Modifier.candidateBaseline(textSize)).then(if (interactive && onSentenceSelection != null && text.isNotEmpty()) Modifier
+                .magnifier(sourceCenter = { magnifierPosition })
+                .pointerInput(text) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val held = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+                    val layout = textLayout ?: return@awaitEachGesture
+                    fun characterAt(position: androidx.compose.ui.geometry.Offset): Int {
+                        val offset = layout.getOffsetForPosition(position).coerceIn(0, text.lastIndex)
+                        return if (offset > 0 && layout.getBoundingBox(offset - 1).contains(position)) offset - 1 else offset
+                    }
+                    val first = characterAt(down.position)
+                    var last = first
+                    var dragged = false
+                    dragSelection = first..first
+                    currentSentenceSelectionChange?.invoke(first, first + 1)
+                    magnifierPosition = held.position
+                    try { do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if ((change.position - down.position).getDistance() >= viewConfiguration.touchSlop) dragged = true
+                        if (dragged) {
+                            val next = characterAt(change.position)
+                            if (next != last) {
+                                last = next
+                                dragSelection = minOf(first, last)..maxOf(first, last)
+                                currentSentenceSelectionChange?.invoke(minOf(first, last), maxOf(first, last) + 1)
+                            }
+                        }
+                        magnifierPosition = change.position
+                        change.consume()
+                    } while (change.pressed) } finally {
+                        dragSelection = null
+                        currentSentenceSelectionEnd?.invoke()
+                        magnifierPosition = androidx.compose.ui.geometry.Offset.Unspecified
+                    }
+                    if (dragged) currentSentenceSelection?.invoke(minOf(first, last), maxOf(first, last) + 1)
+                    else currentLongClick?.invoke()
+                }
+            } else Modifier),
+            onTextLayout = { textLayout = it },
+            color = if (isSelected) selectedTextColor else textColor,
+            fontSize = textSize,
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+            maxLines = if (twoLineWidth != null) 2 else 1,
+            fontFamily = candidateFontFamily,
+            style = primaryStyle,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (learned) {
+            // 不占宽度：画在字的右上角外面、候选自己的留白里，候选之间的距离和没有角标时一样（用户 11-19：编辑按钮太宽）。
+            androidx.compose.material3.Icon(
+                imageVector = androidx.compose.material.icons.Icons.Filled.Edit,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.align(Alignment.Top)
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        // 角标比右边留白宽时往左挪进字的右上角一点，不超出候选（候选外面会被裁掉）。
+                        val shift = minOf(0, with(this) { horizontalPadding.roundToPx() } - placeable.width)
+                        // 再往上抬到候选顶边（用掉上面 2dp 留白），落在字形上方的空里，不压字的右上角（用户 11-23：0.4 倍挡住了字）。
+                        val lift = with(this) { CANDIDATE_ITEM_VERTICAL_PADDING.roundToPx() }
+                        layout(0, placeable.height) { placeable.place(shift, -lift) }
+                    }
+                    .size(with(LocalDensity.current) { learnedMarkSize(fontSize).toDp() })
+                    .testTag("candidate-learned:$index"),
+            )
+        }
+        if (correction.isNotEmpty() || comment.isNotEmpty()) {
+            // 后面跟着注释时让出角标那一点，免得压到注释。
+            Spacer(modifier = Modifier.width(if (learned) learnedCommentGap(fontSize) else 3.dp))
+            val commentColor = if (isSelected) selectedTextColor.copy(alpha = if (opaqueComment) 1f else 0.6f) else textColor.copy(alpha = if (opaqueComment) 1f else 0.5f)
+            Text(
+                text = if (correction.isNotEmpty()) correctionAnnotatedString(correction, commentColor, LocalCorrectionFullScheme.current)
+                    else androidx.compose.ui.text.AnnotatedString(comment),
+                modifier = Modifier.candidateBaseline(fontSize),
+                color = commentColor,
+                fontSize = (fontSize.value * 11f / 19f).sp,
+                fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                fontFamily = commentFontFamily,
+                style = LocalTextStyle.current.copy(shadow = textShadow),
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * 「打过的词」小图标的边长（字高的 0.3：四分之一看不清，0.4 挡住字的右上角，用户 11-23）。
+ * 图标不占宽度，只在后面有注释时让出 [learnedCommentGap]。
+ */
+internal fun learnedMarkSize(fontSize: androidx.compose.ui.unit.TextUnit): androidx.compose.ui.unit.TextUnit =
+    (fontSize.value * LEARNED_MARK_RATIO).sp
+
+/** 有角标的候选后面跟注释时，字和注释之间的空：角标宽再留 1dp。画和量候选宽度共用。 */
+internal fun learnedCommentGap(fontSize: androidx.compose.ui.unit.TextUnit): androidx.compose.ui.unit.Dp =
+    maxOf(3.dp, fontSize.value.dp * LEARNED_MARK_RATIO + 1.dp)
+
+private const val LEARNED_MARK_RATIO = 0.3f
+
+/** 候选上下的留白；角标抬进上面这段留白里。 */
+private val CANDIDATE_ITEM_VERTICAL_PADDING = 2.dp
+
+/** 候选后面那段小字：有纠错显示纠错，否则显示注释（和 [CandidateItem] 一致）。 */
+internal fun candidateSecondaryText(comment: String, correction: String,
+    fullScheme: com.kingzcheung.xime.settings.DoublePinyinScheme? = null): AnnotatedString =
+    if (correction.isNotEmpty()) correctionAnnotatedString(correction, Color.Unspecified, fullScheme) else AnnotatedString(comment)
+
+/** 候选两侧的默认留白。 */
+internal val CANDIDATE_ITEM_PADDING = 4.dp
+
+/** 两个候选之间的空白（间隔加两边留白）到这么宽才画分隔竖线：默认约 12dp 不画，「候选词间距加宽」约 23dp 画。 */
+internal val CANDIDATE_DIVIDER_MIN_GAP = 18.dp
+
+/** 候选之间空得开时，像 Gboard 那样中间画一条浅色竖线；挤的时候不画（用户 11-09）。 */
+internal fun candidateDividersShown(itemSpacing: androidx.compose.ui.unit.Dp, itemPadding: androidx.compose.ui.unit.Dp): Boolean =
+    itemSpacing + itemPadding * 2 >= CANDIDATE_DIVIDER_MIN_GAP
+
+/** 分隔竖线的颜色：候选文字色压到很淡，随主题；和展开页格子之间的竖线同一个颜色。 */
+internal fun candidateDividerColor(textColor: Color): Color = textColor.copy(alpha = 0.12f)
+
+/**
+ * 在这个候选左边那段 [spacing] 宽的间隔正中画竖线，约一个字高，上下居中。
+ * 画在候选自己的位置之外，不占宽度、不挡点按，候选怎么排都不变。按整像素画，细线不发虚。
+ */
+internal fun Modifier.candidateLeadingDivider(color: Color, spacing: androidx.compose.ui.unit.Dp,
+    fontSize: androidx.compose.ui.unit.TextUnit): Modifier = drawBehind {
+    val width = 1.dp.toPx().roundToInt().coerceAtLeast(1)
+    val left = (-spacing.toPx() / 2f - width / 2f).roundToInt().toFloat()
+    val height = minOf(fontSize.toPx(), size.height).roundToInt().toFloat()
+    val top = ((size.height - height) / 2f).roundToInt().toFloat()
+    drawRect(color, androidx.compose.ui.geometry.Offset(left, top),
+        androidx.compose.ui.geometry.Size(width.toFloat(), height))
+}
+
+/** 「候选词间距加宽」时每侧留白：按字号加大，两个候选之间（含 4dp 间隔）约空出 1.2 个字。 */
+internal fun wideCandidateItemPadding(fontSize: androidx.compose.ui.unit.Dp): androidx.compose.ui.unit.Dp =
+    CANDIDATE_ITEM_PADDING + fontSize * 0.3f
+
+/** 候选两侧留白，随设置「候选词间距加宽」实时变化（默认关，B站反馈 10-31）。 */
+@Composable
+internal fun rememberCandidateItemPadding(fontSize: androidx.compose.ui.unit.TextUnit): androidx.compose.ui.unit.Dp {
+    val context = LocalContext.current
+    val preferences = remember(context) { SettingsPreferences.getPrefsPublic(context) }
+    var wide by remember(preferences) { mutableStateOf(SettingsPreferences.isWideCandidateSpacing(context)) }
+    DisposableEffect(preferences) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key == SettingsPreferences.KEY_WIDE_CANDIDATE_SPACING)
+                wide = SettingsPreferences.isWideCandidateSpacing(context)
+        }
+        preferences.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { preferences.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val fontDp = with(LocalDensity.current) { fontSize.toDp() }
+    return if (wide) wideCandidateItemPadding(fontDp) else CANDIDATE_ITEM_PADDING
+}
+
+/** Reserve the same text height before asynchronous candidates arrive. */
+@Composable
+internal fun candidateItemHeight(fontSize: androidx.compose.ui.unit.TextUnit): androidx.compose.ui.unit.Dp =
+    with(LocalDensity.current) { (fontSize.value * 1.35f).sp.toDp() } + 4.dp
+
+/**
+ * ▾ 展开时箭头尖从左边转上去，收回时从左边转下来（0.1.5 起就是这个方向）。
+ * 11-01 把图标从 ▴ 换成 ▾ 时角度没跟着改号，尖变成从右边转了（11-22 他：「应该从左侧旋转，远古版本就修了」）。
+ * 换图标就要同时改这个角度：CandidateExpansionArrowTest 按图标和角度算尖走哪边。
+ */
+internal val CANDIDATE_EXPANSION_ARROW get() = Icons.Default.KeyboardArrowDown
+internal const val CANDIDATE_EXPANSION_ARROW_EXPANDED_DEGREES = 180f
+
+/** 候选词和联想词共用：向下展开，向上返回键盘。 */
+@Composable
+private fun CandidateExpansionButton(
+    onClick: () -> Unit,
+    background: Color,
+    foreground: Color,
+    expanded: Boolean,
+    rotation: Float,
+    restingFill: Color = Color.Transparent,
+    slotWidth: androidx.compose.ui.unit.Dp? = null,
+    cornerRadius: androidx.compose.ui.unit.Dp? = null,
+    continuousPill: Boolean = false,
+) {
+    KeyboardToolbarButton(onClick, background, restingFill = restingFill, slotWidth = slotWidth, cornerRadius = cornerRadius,
+        continuousPill = continuousPill,
+        modifier = Modifier.testTag("candidate-expansion").semantics { stateDescription = if (expanded) "已展开" else "已收起" }) {
+        Icon(CANDIDATE_EXPANSION_ARROW,
+            contentDescription = if (expanded) "返回键盘" else "展开候选词",
+            tint = foreground, modifier = Modifier.size(24.dp * LocalCandidateSizeFactor.current).rotate(rotation))
+    }
+}
+
+/**
+ * 候选栏这一条在键盘玻璃底色上再补多少同样的底色，才和按键一样厚：
+ * 1 − (1 − 底色)(1 − 补) = 按键 ⇒ 补 = 1 − (1 − 按键)/(1 − 底色)。底色不比按键薄（深色玻璃、「我的图片」）时不补。
+ */
+internal fun glassStripBoostAlpha(panelOpacity: Float, keyOpacity: Float): Float {
+    val panel = panelOpacity.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: return 0f
+    val key = keyOpacity.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: return 0f
+    if (key <= panel || panel >= 1f) return 0f
+    return (1f - (1f - key) / (1f - panel)).coerceIn(0f, 1f)
+}
+
+/**
+ * 给候选栏这一条补底色：画的是键盘同一张玻璃底图（同一窗口坐标），只是再叠 [alpha]，
+ * 所以纯色、渐变、图片主题都还是原来的样子，只是不再透出后面的应用。「柔化顶部边缘」照样渐隐。
+ */
+@Composable
+private fun Modifier.glassStripBoost(alpha: Float): Modifier {
+    val shared = com.kingzcheung.xime.ui.theme.LocalSharedKeyboardBackdrop.current
+    val root = LocalView.current.rootView
+    val backdrop = shared?.takeIf { it.windowRoot === root }
+    val feather = com.kingzcheung.xime.ui.theme.LocalGlassTopFeather.current?.takeIf { it.windowRoot === root }
+    val fallback = backdrop?.fallback ?: com.kingzcheung.xime.ui.theme.LocalMaterialPalette.current?.surface
+    var origin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val surfaceKey = remember { Any() }
+    if (backdrop != null) DisposableEffect(backdrop.reportSurfaceTop, surfaceKey) {
+        onDispose { backdrop.reportSurfaceTop(surfaceKey, null) }
+    }
+    if (fallback == null) return this
+    return onGloballyPositioned {
+        origin = it.positionInWindow()
+        backdrop?.reportSurfaceTop?.invoke(surfaceKey, origin.y)
+    }.then(com.kingzcheung.xime.ui.theme.motionRedrawIsolation(backdrop?.motion)).drawBehind {
+        drawUnderTopFeather(feather?.top?.value?.minus(origin.y), feather?.heightPx ?: 0f) {
+            val image = backdrop?.image?.takeIf { backdrop.frame.size.width > 0 && backdrop.frame.size.height > 0 }
+            if (image == null) drawRect(fallback.copy(alpha = 1f), alpha = alpha)
+            else {
+                val offset = backdrop.frame.offsetIn(origin)
+                clipRect(offset.x, offset.y, offset.x + backdrop.frame.size.width,
+                    offset.y + backdrop.frame.size.height, androidx.compose.ui.graphics.ClipOp.Difference) {
+                    drawRect(fallback.copy(alpha = 1f), alpha = alpha)
+                }
+                clipRect {
+                    // 动态背景：和键盘本体同一个样子动。
+                    withSharedBackdropMotion(backdrop, offset) {
+                        translate(offset.x, offset.y) {
+                            drawImage(image, dstSize = backdrop.frame.size, alpha = alpha,
+                                filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 非聚焦窗口提供真实触控区域，点击编码不会抢走宿主编辑框焦点。 */
+@Composable
+private fun PreeditPreview(text: String, visuals: CandidateBarVisuals, onEdit: ((Int?) -> Unit)?, bubbleColor: Color,
+    /** 编码刚清空、窗口还没拆：气泡画成全透明，不能点，模糊也同时调成全透明（见 [PreeditBubbleHost]）。 */
+    hidden: Boolean = false,
+    /** 靠左（默认，和原来一样）、居中、靠右（用户 11-21：四种样式都能选左中右）。 */
+    align: String = SettingsPreferences.PREEDIT_ALIGN_LEFT) {
+    val density = LocalDensity.current
+    // 放大后的候选栏里 dp 变大了，按屏宽限宽要换回同样的像素宽度。
+    val screenWidth = (LocalConfiguration.current.screenWidthDp / LocalCandidateBarScale.current).dp
+    val margin = with(density) { 4.dp.roundToPx() }
+    val gap = with(density) { 2.dp.roundToPx() }
+    val rotation = LocalFloatingKeyboardRotation.current
+    if (isFloatingRotated(rotation)) {
+        RotatedPreeditPreview(text, visuals, onEdit.takeUnless { hidden }, rotation, gap, screenWidth, bubbleColor,
+            if (hidden) HiddenPreeditBubble else Modifier)
+        return
+    }
+    // 气泡在键盘外面（上方），键盘的玻璃模糊盖不到它：开玻璃时给气泡单独垫一块同样的实时模糊（用户反馈 10-31
+    // 「字母显示栏的模糊会消失」：气泡底色和按键一样半透明，后面却是没模糊的应用）。区域按气泡在输入法窗口里的位置算。
+    val bubbleBounds = remember { mutableStateOf<IntRect?>(null) }
+    // 气泡默认贴着键盘左边（用户 10-20 要求恢复）：不跟光标，所有应用位置一样；11-21 起可选居中、靠右。
+    val positionProvider = remember(margin, gap, align) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
+                layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+                val x = when (align) {
+                    SettingsPreferences.PREEDIT_ALIGN_CENTER -> anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+                    SettingsPreferences.PREEDIT_ALIGN_RIGHT -> anchorBounds.right - popupContentSize.width
+                    else -> anchorBounds.left
+                }
+                return IntOffset(
+                    x.coerceIn(margin,
+                        (windowSize.width - popupContentSize.width - margin).coerceAtLeast(margin)),
+                    (anchorBounds.top - popupContentSize.height - gap).coerceIn(0,
+                        (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
+                ).also { offset ->
+                    val bounds = IntRect(offset, popupContentSize)
+                    if (bubbleBounds.value != bounds) bubbleBounds.value = bounds
+                }
+            }
+        }
+    }
+    val glass = LocalKeyboardInputPreferences.current.frostedGlass.normalized()
+    if (floatingPreeditBlurBehind(glass)) {
+        // 气泡内容最少 44dp 高、上下各留 6dp，真正的底色块在中间，圆角 4dp（见下面 PreeditLabel）。
+        val inset = with(density) { 6.dp.roundToPx() }
+        PreeditBubbleBlur(bubbleBounds.value?.let { IntRect(it.left, it.top + inset, it.right, it.bottom - inset) },
+            glass.blurRadiusDp, with(density) { 4.dp.toPx() }, hidden)
+    }
+    val origin = LocalPreeditOrigin.current
+    val fontSp = PreeditStyle.FontSize.value
+    val vertical = with(density) { 6.dp.roundToPx() }
+    val edit: ((Int?) -> Unit)? = onEdit?.let { open -> { letters: Int? ->
+        // 编辑条从气泡的底色块处渐渐变长（用户 11-21：原来的样式只要逐渐变长）。
+        origin?.value = bubbleBounds.value?.let {
+            PreeditOrigin(IntRect(it.left, it.top + vertical, it.right, it.bottom - vertical), bubbleColor, fontSp)
+        }
+        open(letters)
+    } }
+    Popup(popupPositionProvider = positionProvider,
+        properties = PopupProperties(focusable = false, dismissOnBackPress = false,
+            dismissOnClickOutside = false, clippingEnabled = true)) {
+        PreeditLabel(text, visuals, edit.takeUnless { hidden }, Modifier.widthIn(max = screenWidth - 16.dp)
+            .heightIn(min = 44.dp).padding(vertical = 6.dp).then(if (hidden) HiddenPreeditBubble else Modifier),
+            solidBackground = bubbleColor, maxLines = PREEDIT_BUBBLE_MAX_LINES)
+    }
+}
+
+/**
+ * 贴在键盘边框上的拼音（11-20 起）：和键盘同色，底边正好贴在候选栏顶上（键盘边框外），键盘本身不动、不加高。
+ * 整块都能点开拼音编辑，点开是和气泡一样的原来那条编辑条，从这里渐渐长大（11-21）。三种样子（用户 11-21「总共 4 种样式」，另一种是气泡）：
+ * - [SettingsPreferences.PREEDIT_STYLE_LINE] 圆角小签：高 26dp、16sp，宽度跟拼音走；
+ * - [SettingsPreferences.PREEDIT_STYLE_BLOCK] 贴边方块：直角，高 36dp，字和气泡一样大；
+ * - [SettingsPreferences.PREEDIT_STYLE_STRIP] 顶上一行：和键盘卡片一样宽、上两角跟卡片同一圆角，像键盘往上多出一行，拼音在行里按 [align] 摆。
+ * 小签和方块按 [align] 靠左、居中或靠右。靠左、靠右时贴死键盘卡片边缘，贴边那一角是直角，卡片在它下面的那个圆角用同色补平
+ * （他：「贴边就要处理圆角，不能圆角又露出来，上面再放一个标签会很丑」）；顶上一行两边都补。
+ */
+@Composable
+private fun PreeditTab(text: androidx.compose.ui.text.AnnotatedString, textColor: Color, color: Color,
+    style: String, align: String, barPadding: androidx.compose.ui.unit.Dp, cardCorner: androidx.compose.ui.unit.Dp,
+    cardWidth: androidx.compose.ui.unit.Dp, onEdit: ((Int?) -> Unit)?, hidden: Boolean, corrected: Boolean) {
+    val density = LocalDensity.current
+    val screenWidth = (LocalConfiguration.current.screenWidthDp / LocalCandidateBarScale.current).dp
+    val tabBounds = remember { mutableStateOf<IntRect?>(null) }
+    val strip = style == SettingsPreferences.PREEDIT_STYLE_STRIP
+    val block = style == SettingsPreferences.PREEDIT_STYLE_BLOCK
+    val left = align == SettingsPreferences.PREEDIT_ALIGN_LEFT
+    val right = align == SettingsPreferences.PREEDIT_ALIGN_RIGHT
+    // 挂在候选栏内边距里面：往外退回内边距才是键盘卡片的边缘。
+    val shift = with(density) { barPadding.roundToPx() }
+    // 贴边时在下面补卡片圆角的缺口；这一块伸进栏顶下面，本身的底边仍正好贴着栏顶。
+    val fillLeft = cardCorner > 0.dp && (strip || left)
+    val fillRight = cardCorner > 0.dp && (strip || right)
+    // 弹窗里用的是屏幕本来的 density，不是候选栏放大后的（平板上候选栏放大 1.18 倍时，整行按放大后的 dp 换回去
+    // 只剩 85% 宽，右边停在 ▾ 左边，11-22 平板 105 实测）。卡片宽、卡片圆角先在这里换成像素，进弹窗再按弹窗的 density 换回 dp。
+    val cardCornerPx = with(density) { cardCorner.toPx() }
+    val stripWidthPx = with(density) { (if (cardWidth > 0.dp) cardWidth else screenWidth).toPx() }
+    val notch = if (fillLeft || fillRight) cardCornerPx.roundToInt() else 0
+    val positionProvider = remember(strip, align, shift, notch) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
+                layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+                val tabHeight = popupContentSize.height - notch
+                val x = when {
+                    strip || left -> anchorBounds.left - shift
+                    right -> anchorBounds.right + shift - popupContentSize.width
+                    else -> anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+                }
+                return IntOffset(x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+                    (anchorBounds.top - tabHeight).coerceIn(0,
+                        (windowSize.height - popupContentSize.height).coerceAtLeast(0)))
+                    .also { offset ->
+                        val bounds = IntRect(offset, IntSize(popupContentSize.width, tabHeight))
+                        if (tabBounds.value != bounds) tabBounds.value = bounds
+                    }
+            }
+        }
+    }
+    val platformDensity = LocalContext.current.resources.displayMetrics.density
+    // 轮廓（11-21 他：「有什么区别?」）：底色和键盘一样，深色主题下键盘色又和应用底色差不多，小签、方块、顶上一行
+    // 只剩一行字，看不出形状。沿上边和两侧描一圈细线（底边接着键盘，不描），三种形状一眼分得出。
+    val outline = textColor.copy(alpha = PREEDIT_TAB_OUTLINE_ALPHA)
+    val glass = LocalKeyboardInputPreferences.current.frostedGlass.normalized()
+    if (floatingPreeditBlurBehind(glass)) PreeditBubbleBlur(tabBounds.value, glass.blurRadiusDp,
+        if (strip) cardCornerPx else if (block) 0f else 8f * platformDensity, hidden)
+    val sizeSp = (if (block) 18f else PREEDIT_TAB_TEXT_SP) * LocalCandidateSizeFactor.current
+    val size = sizeSp.sp
+    val height = if (block) PREEDIT_BLOCK_HEIGHT else PREEDIT_TAB_HEIGHT
+    val origin = LocalPreeditOrigin.current
+    val tap = remember { PreeditTapPoint() }
+    val slop = with(density) { PreeditTapSlop.toPx() }
+    val edit: (() -> Unit)? = onEdit?.let { open -> {
+        // 记下拼音在哪、什么底色字号，编辑条从这里渐渐长成原来的样子。
+        origin?.value = tabBounds.value?.let { PreeditOrigin(it, color, sizeSp) }
+        // 点在哪个字母后面，打开后光标就在哪（纠错读音对不上打的字母，光标照旧）。
+        open(if (corrected) null else tap.lettersBefore(slop))
+    } }
+    Popup(popupPositionProvider = positionProvider,
+        properties = PopupProperties(focusable = false, dismissOnBackPress = false,
+            dismissOnClickOutside = false, clippingEnabled = true)) {
+        val placed = tabBounds.value
+        val popupDensity = LocalDensity.current
+        val stripWidth = with(popupDensity) { stripWidthPx.toDp() }
+        val notchDp = with(popupDensity) { notch.toDp() }
+        val popupScreenWidth = LocalConfiguration.current.screenWidthDp.dp
+        val corner = when {
+            strip -> with(popupDensity) { cardCornerPx.toDp() }
+            block -> 0.dp
+            else -> 8.dp
+        }
+        val startCorner = if (strip || !left) corner else 0.dp
+        val endCorner = if (strip || !right) corner else 0.dp
+        val shape = RoundedCornerShape(topStart = startCorner, topEnd = endCorner)
+        // 清空后透明的那几帧要整块透明：透明层放在最外面。以前放在底色、描边之后，只把字藏了，底色和描边照画，
+        // 拼音一空小签缩成最小宽度的空壳；窗口拆掉时系统又拿这一帧放约半秒的退出动画（11-23 他：上屏、清空后
+        // 「先清空内容、标签还在、最小宽度，等一会才消失」）。
+        Column(Modifier.then(if (hidden) HiddenPreeditBubble else Modifier),
+            horizontalAlignment = if (right && !strip) Alignment.End else Alignment.Start) {
+        Box(Modifier.then(if (strip) Modifier.width(stripWidth) else Modifier.widthIn(max = popupScreenWidth))
+            .heightIn(min = height).clip(shape).background(color)
+            .preeditTabOutline(outline, startCorner, endCorner)
+            .then(if (edit != null && !hidden) tap.record().clickable(role = Role.Button, onClickLabel = "编辑拼音", onClick = edit) else Modifier)
+            .padding(horizontal = if (strip) 12.dp else 8.dp).testTag("preedit-tab")
+            .then(if (placed != null) Modifier.semantics { this[PreeditPopupBoundsKey] = placed } else Modifier),
+            contentAlignment = when {
+                !strip || left -> Alignment.CenterStart
+                right -> Alignment.CenterEnd
+                else -> Alignment.Center
+            }) {
+            // 笔画编码自己画，粗细、大小统一（11-23，见 StrokeGlyphInline.kt）。
+            Text(text.withDrawnStrokes(LocalStrokeGlyphDrawing.current), color = textColor, fontSize = size, maxLines = 1, softWrap = false,
+                // 长句只露出正在打的结尾。
+                overflow = TextOverflow.StartEllipsis, inlineContent = strokeInlineContent(textColor), onTextLayout = tap::layout,
+                modifier = tap.textModifier().testTag(if (corrected) "preedit-tab-correction" else "preedit-tab-text"))
+        }
+        if (notchDp > 0.dp) {
+            if (strip) Row(Modifier.width(stripWidth)) {
+                PreeditTabCornerFill(notchDp, color, mirrored = false)
+                Spacer(Modifier.weight(1f))
+                PreeditTabCornerFill(notchDp, color, mirrored = true)
+            } else PreeditTabCornerFill(notchDp, color, mirrored = right)
+        }
+        }
+    }
+}
+
+internal const val PREEDIT_TAB_OUTLINE_ALPHA = 0.28f
+
+/** 沿上边和两侧描 1dp 细线，上两角按 [startCorner]/[endCorner] 的圆角走；底边接着键盘，不描。 */
+internal fun Modifier.preeditTabOutline(color: Color, startCorner: androidx.compose.ui.unit.Dp,
+    endCorner: androidx.compose.ui.unit.Dp): Modifier = drawWithContent {
+    drawContent()
+    val stroke = 1.dp.toPx()
+    val half = stroke / 2f
+    val w = size.width
+    val h = size.height
+    val r1 = startCorner.toPx().coerceAtMost(minOf(w, h) / 2f)
+    val r2 = endCorner.toPx().coerceAtMost(minOf(w, h) / 2f)
+    val path = androidx.compose.ui.graphics.Path().apply {
+        moveTo(half, h)
+        if (r1 > 0f) {
+            lineTo(half, r1)
+            arcTo(androidx.compose.ui.geometry.Rect(half, half, half + 2f * (r1 - half), half + 2f * (r1 - half)), 180f, 90f, false)
+        } else lineTo(half, half)
+        if (r2 > 0f) {
+            lineTo(w - r2, half)
+            arcTo(androidx.compose.ui.geometry.Rect(w - half - 2f * (r2 - half), half, w - half, half + 2f * (r2 - half)), 270f, 90f, false)
+        } else lineTo(w - half, half)
+        lineTo(w - half, h)
+    }
+    drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+}
+
+/**
+ * 小签贴死卡片边缘时，卡片上角的圆角在小签下面留出的缺口，用小签同色补上：只补圆弧外那一块，半透明时不和卡片叠色。
+ * [mirrored] 为 false 补左上角（小签靠左），true 补右上角（小签靠右）。
+ */
+@Composable
+internal fun PreeditTabCornerFill(radius: androidx.compose.ui.unit.Dp, color: Color, mirrored: Boolean,
+    modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier.size(radius).testTag("preedit-tab-corner-fill")) {
+        val w = size.width
+        val h = size.height
+        val notch = androidx.compose.ui.graphics.Path().apply {
+            if (!mirrored) {
+                // 圆心在右下 (w, h)：从左上角沿上边到 (w, 0)，顺着圆弧逆时针回到 (0, h)。
+                moveTo(0f, 0f)
+                lineTo(w, 0f)
+                arcTo(androidx.compose.ui.geometry.Rect(0f, 0f, 2 * w, 2 * h), 270f, -90f, false)
+            } else {
+                // 圆心在左下 (0, h)：从右上角沿上边到 (0, 0)，顺着圆弧顺时针到 (w, h)。
+                moveTo(w, 0f)
+                lineTo(0f, 0f)
+                arcTo(androidx.compose.ui.geometry.Rect(-w, 0f, w, 2 * h), 270f, 90f, false)
+            }
+            close()
+        }
+        drawPath(notch, color)
+    }
+}
+
+/**
+ * 小签和拼音编辑条在键盘窗口里的位置（像素，和候选栏、键盘节点的 boundsInWindow 同一坐标）。
+ * 它们是单独的弹窗，节点自己的 boundsInWindow 是弹窗里的坐标，测试要用这个和候选栏、键盘比位置。
+ */
+internal val PreeditPopupBoundsKey = androidx.compose.ui.semantics.SemanticsPropertyKey<IntRect>("PreeditPopupBounds")
+
+/** 小签的底色：键盘面板的底色、不透明，看上去是键盘往上长出来的一块；开玻璃时和气泡一样半透明并垫模糊。 */
+@Composable
+internal fun preeditTabColor(fallbackSurface: Color): Color {
+    val surface = com.kingzcheung.xime.ui.theme.LocalMaterialPalette.current?.surface ?: fallbackSurface
+    val glass = LocalKeyboardInputPreferences.current.frostedGlass
+    return if (glass.enabled) floatingPreeditColor(surface, Color.Unspecified)
+        else preeditBubbleColor(surface, Color.Unspecified, blurBehind = false)
+}
+
+/**
+ * 拼音气泡是单独的 Popup 小窗口。窗口一拆，系统会拿它最后一帧放退出动画：先往下沉一小段，约半秒才没
+ * （用户 11-06 转来的反馈）。编码清空时先把气泡画成全透明，等这几帧画面真正送上屏再拆窗口，
+ * 退出动画播的就是空白，看上去当场消失。重新打字时窗口还在就直接接着用。位置、底色、不透明度都不变。
+ */
+@Composable
+private fun PreeditBubbleHost(visible: Boolean, bubble: @Composable (hidden: Boolean) -> Unit) {
+    var windowOpen by remember { mutableStateOf(false) }
+    SideEffect { if (visible) windowOpen = true }
+    LaunchedEffect(visible) {
+        if (!visible && windowOpen) {
+            repeat(PREEDIT_BUBBLE_CLEAR_FRAMES) { androidx.compose.runtime.withFrameNanos { } }
+            windowOpen = false
+        }
+    }
+    if (visible || windowOpen) bubble(!visible)
+}
+
+/** 气泡清空后再画几帧透明的才拆窗口：一帧排版绘制，其余留给合成器把这张空白画面换上屏。 */
+private const val PREEDIT_BUBBLE_CLEAR_FRAMES = 3
+
+/** 透明且没有语义节点：测试和无障碍都当气泡已经没了。 */
+private val HiddenPreeditBubble = Modifier.alpha(0f).clearAndSetSemantics {}
+
+/** 半透明拼音底色上的字要不要垫光晕：实底或没有底色时不垫。 */
+internal fun floatingPreeditHalo(text: Color, background: Color?): GlassTextHalo? =
+    background?.takeIf { it.alpha < 1f }?.let { glassTextHalo(listOf(text), it.copy(alpha = 1f), it.alpha) }
+
+/** 拼音气泡最多排几行；再长就在气泡里上下滚，始终露出光标所在的那行（没有光标时露出最后一行）。 */
+private const val PREEDIT_BUBBLE_MAX_LINES = 3
+
+/**
+ * 拼音气泡的底色：按键颜色叠在键盘底色上、不透明，和键盘上的按键一个样（用户 10-31：原来是按键色再打六折，
+ * 应用画面在气泡后面时拼音看不清；三星、Gboard 的气泡都是实底）。开着玻璃、气泡下面垫了实时模糊时最多 0.9。
+ * [opacity] 是设置里的「拼音气泡不透明度」（默认 1，喜欢透的可以调低，用户 11-01）。
+ */
+internal fun preeditBubbleColor(surface: Color, key: Color, blurBehind: Boolean, opacity: Float = 1f): Color {
+    val base = surface.copy(alpha = 1f)
+    val solid = if (key == Color.Unspecified || key.alpha == 0f) base
+        else key.compositeOver(base).copy(alpha = 1f)
+    val alpha = opacity.coerceIn(0f, 1f).let { if (blurBehind) minOf(it, PREEDIT_BUBBLE_GLASS_ALPHA) else it }
+    return solid.copy(alpha = alpha)
+}
+
+internal const val PREEDIT_BUBBLE_GLASS_ALPHA = 0.9f
+
+/** 开着玻璃且模糊半径够大时，浮在应用上的拼音气泡、拼音编辑条下面都垫一块实时模糊。 */
+internal fun floatingPreeditBlurBehind(glass: com.kingzcheung.xime.settings.FrostedGlassConfig): Boolean =
+    glass.normalized().let { it.enabled && it.blurRadiusDp >= 1f }
+
+/**
+ * 浮在应用上面的拼音底色：键盘上方的拼音气泡和点开后的拼音编辑条用同一个颜色、同一个不透明度
+ * （设置里的「拼音气泡不透明度」，默认 80%），点拼音编辑时不会从实底忽然变透（用户 11-16）。
+ */
+@Composable
+internal fun floatingPreeditColor(surface: Color, key: Color): Color {
+    val prefs = LocalKeyboardInputPreferences.current
+    return preeditBubbleColor(surface, key, floatingPreeditBlurBehind(prefs.frostedGlass), prefs.preeditBubbleOpacity)
+}
+
+/**
+ * 编码清空、气泡变透明的那几帧里模糊窗口的透明度。模糊也是单独的小窗口，原来这一刻就拆掉，
+ * 系统拿它最后一帧放退出动画，模糊比拼音晚一拍才没（用户 11-08 转来的反馈）。现在同一帧调成全透明，
+ * 跟气泡窗口一起拆，退出动画播的也是空白。
+ */
+internal fun preeditBubbleBlurAlpha(hidden: Boolean): Float = if (hidden) 0f else 1f
+
+/** 拼音气泡下面的实时模糊：和键盘卡片的玻璃同一种子窗口，放在输入法窗口下面，只模糊气泡那一块应用画面。 */
+@Composable
+internal fun PreeditBubbleBlur(region: IntRect?, blurRadiusDp: Float, cornerRadiusPx: Float, hidden: Boolean = false) {
+    val view = LocalView.current
+    val context = LocalContext.current
+    // 模糊半径按屏幕真实密度算，和键盘卡片那块一样；候选栏放大只放大气泡，不改模糊强度。
+    val radiusPx = (blurRadiusDp * context.resources.displayMetrics.density).roundToInt().coerceAtLeast(1)
+    val blur = remember(view) {
+        com.kingzcheung.xime.service.ImeGlassBlurWindow(context, "preedit-bubble") { view.rootView }
+    }
+    DisposableEffect(blur) {
+        blur.setVisible(true)
+        onDispose { blur.dispose() }
+    }
+    SideEffect {
+        blur.setOpacity(preeditBubbleBlurAlpha(hidden))
+        blur.configure(true, radiusPx, cornerRadiusPx)
+        blur.setRegion(region?.let { android.graphics.Rect(it.left, it.top, it.right, it.bottom) })
+    }
+}
+
+/**
+ * 悬浮键盘转过时的拼音气泡：仍贴在候选栏左上方，但跟键盘一起倾斜。
+ * Popup 的锚点是转过后的候选栏原点，气泡中心按同一角度转到窗口坐标；窗口取转后的外接框，里面再把气泡转过去。
+ */
+@Composable
+private fun RotatedPreeditPreview(text: String, visuals: CandidateBarVisuals, onEdit: ((Int?) -> Unit)?,
+    rotation: Float, gap: Int, screenWidth: androidx.compose.ui.unit.Dp, bubbleColor: Color,
+    labelModifier: Modifier = Modifier) {
+    val labelSize = remember { IntArray(2) }
+    val positionProvider = remember(rotation, gap) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
+                layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+                val (cx, cy) = rotatePoint(labelSize[0] / 2f, -(labelSize[1] / 2f + gap), 0f, 0f, rotation)
+                return IntOffset((anchorBounds.left + cx - popupContentSize.width / 2f).roundToInt(),
+                    (anchorBounds.top + cy - popupContentSize.height / 2f).roundToInt())
+            }
+        }
+    }
+    Popup(popupPositionProvider = positionProvider,
+        properties = PopupProperties(focusable = false, dismissOnBackPress = false,
+            dismissOnClickOutside = false, clippingEnabled = false)) {
+        Box(Modifier.layout { measurable, _ ->
+            val placeable = measurable.measure(androidx.compose.ui.unit.Constraints())
+            labelSize[0] = placeable.width
+            labelSize[1] = placeable.height
+            val c = kotlin.math.abs(kotlin.math.cos(Math.toRadians(rotation.toDouble()))).toFloat()
+            val s = kotlin.math.abs(kotlin.math.sin(Math.toRadians(rotation.toDouble()))).toFloat()
+            val boxWidth = kotlin.math.ceil(placeable.width * c + placeable.height * s).toInt().coerceAtLeast(1)
+            val boxHeight = kotlin.math.ceil(placeable.width * s + placeable.height * c).toInt().coerceAtLeast(1)
+            layout(boxWidth, boxHeight) {
+                placeable.placeWithLayer((boxWidth - placeable.width) / 2, (boxHeight - placeable.height) / 2) {
+                    rotationZ = rotation
+                }
+            }
+        }) {
+            PreeditLabel(text, visuals, onEdit, Modifier.widthIn(max = screenWidth - 16.dp)
+                .heightIn(min = 44.dp).padding(vertical = 6.dp).then(labelModifier),
+                solidBackground = bubbleColor, maxLines = PREEDIT_BUBBLE_MAX_LINES)
+        }
+    }
+}
+
+/** Shared by the screen keyboard preview and the hardware caret surface. */
+@Composable
+internal fun PreeditLabel(text: String, visuals: CandidateBarVisuals,
+    /** 点拼音打开编辑；参数是点在第几个字母后面（算不出来是 null）。 */
+    onEdit: ((Int?) -> Unit)? = null,
+    modifier: Modifier = Modifier, followTextTail: Boolean = false,
+    /** 键盘上方的拼音气泡：给了就用这个实底（不再打折），字色按它调到看得清。 */
+    solidBackground: Color? = null,
+    /** 大于 1 时放不下就折行，最多这么多行，再多在里面上下滚。 */
+    maxLines: Int = 1) {
+    val scrollState = rememberScrollState()
+    // The input preview must expose newly typed syllables once it reaches the available width.
+    // A manual scroll remains untouched until the text or viewport changes.
+    LaunchedEffect(text, followTextTail, scrollState.maxValue) {
+        if (followTextTail && scrollState.maxValue != Int.MAX_VALUE) {
+            scrollState.scrollTo(scrollState.maxValue)
+        }
+    }
+    val background = if (visuals.preeditBackgroundColor != Color.Unspecified) visuals.preeditBackgroundColor
+        else if (visuals.textColor.luminance() > 0.5f) Color(0xFF2D2F31) else Color(0xFFFAFAFA)
+    val surface = solidBackground?.let {
+        Modifier.heightIn(min = PreeditStyle.SurfaceHeight).clip(RoundedCornerShape(4.dp)).background(it)
+            .padding(horizontal = 8.dp)
+    } ?: Modifier.preeditSurface(background)
+    val textColor = solidBackground?.let { readableThemeText(visuals.textColor, it.copy(alpha = 1f)) }
+        ?: visuals.textColor.copy(alpha = if (visuals.opaqueComments) 1f else 0.9f)
+    // 半透明的气泡：后面是白是黑都按最坏情况算，拼音不够 4.5:1 时垫和候选栏玻璃同一种柔光托底。
+    val halo = remember(textColor, solidBackground) { floatingPreeditHalo(textColor, solidBackground) }
+    val tap = remember { PreeditTapPoint() }
+    val slop = with(LocalDensity.current) { PreeditTapSlop.toPx() }
+    Box(modifier.then(surface).glassTextHalo(halo)
+        .testTag("candidate-preedit")
+        .then(if (onEdit != null) tap.record().clickable(role = Role.Button,
+            onClickLabel = "编辑拼音", onClick = { onEdit(tap.lettersBefore(slop)) }) else Modifier),
+        contentAlignment = Alignment.CenterStart) {
+        val shownText = if (onEdit != null) com.kingzcheung.xime.rime.pinyinPreviewText(text) else text
+        // 光标像系统文字光标一样闪（530ms 一亮一灭，用户 10-21 同意）。节拍挂在拼音条上而不是光标位置上：
+        // 移动光标、光标暂时到末尾不显示时都接着原来的节拍走，不会每移一下又从头亮起。
+        // 用计时切换，不用无限动画：无限动画每一帧（120Hz 屏每秒 120 次）都要唤醒界面线程，打拼音的全程一直耗电。
+        var caretOn by remember { mutableStateOf(true) }
+        LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(530); caretOn = !caretOn } }
+        val caretAlpha = if (caretOn) 1f else 0f
+        // 折行时在隔音符后面垫零宽空格：tou'ming'du 整串没有空格，不垫就只能从音节中间断开。
+        val displayText = if (maxLines > 1) shownText.replace("'", "'\u200B") else shownText
+        val plainAnnotated = sentenceSelectionText(displayText, LocalSentenceSelection.current.value, visuals.accentColor,
+            preeditWithCaret(displayText, visuals.accentColor, textColor, visuals.selectedTextColor, caretAlpha))
+        val annotated = (LocalPreeditToneText.current?.let { plainAnnotated.withSameLengthText(it) } ?: plainAnnotated)
+            .withDrawnStrokes(LocalStrokeGlyphDrawing.current)
+        val strokeContent = strokeInlineContent(textColor)
+        val textStyle = LocalTextStyle.current.copy(shadow = visuals.textShadow)
+        if (maxLines <= 1) {
+            Text(annotated, color = textColor, fontSize = PreeditStyle.FontSize, maxLines = 1,
+                softWrap = false, style = textStyle, inlineContent = strokeContent, onTextLayout = tap::layout,
+                modifier = Modifier.horizontalScroll(scrollState).then(tap.textModifier()).testTag("candidate-preedit-text"))
+        } else {
+            // 长拼音折成几行，不再一行横穿整个应用、后半截被切掉（用户 10-31 截图）。
+            val density = LocalDensity.current
+            val lineHeight = PreeditStyle.FontSize * 1.35f
+            val viewportPx = with(density) { (lineHeight * maxLines).roundToPx() }
+            val lines = rememberScrollState()
+            var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+            LaunchedEffect(displayText, layout, lines.maxValue) {
+                val result = layout ?: return@LaunchedEffect
+                if (lines.maxValue == 0 || lines.maxValue == Int.MAX_VALUE) return@LaunchedEffect
+                val caret = displayText.indexOf(com.kingzcheung.xime.service.PREEDIT_CARET)
+                val target = if (caret < 0 || caret >= result.layoutInput.text.length) lines.maxValue else {
+                    val line = result.getLineForOffset(caret)
+                    val top = result.getLineTop(line).roundToInt()
+                    val bottom = result.getLineBottom(line).roundToInt()
+                    when {
+                        top < lines.value -> top
+                        bottom > lines.value + viewportPx -> bottom - viewportPx
+                        else -> lines.value
+                    }
+                }
+                lines.scrollTo(target.coerceIn(0, lines.maxValue))
+            }
+            Text(annotated, color = textColor, fontSize = PreeditStyle.FontSize, lineHeight = lineHeight,
+                softWrap = true, style = textStyle, inlineContent = strokeContent, onTextLayout = { layout = it; tap.layout(it) },
+                modifier = Modifier.padding(vertical = 4.dp)
+                    .heightIn(max = with(density) { viewportPx.toDp() })
+                    .verticalScroll(lines).then(tap.textModifier()).testTag("candidate-preedit-text"))
+        }
+    }
+}
+
+/** 选中底色上一次对应的候选组和选中项；只是记录，不触发重组。 */
+private class HighlightMove {
+    var candidates: List<String>? = null
+    var index = -1
+    var animateNext = false
+}
+
+/** Layout history only; updating it after composition must not schedule another recomposition. */
+private class CandidateStripViewport { var firstIndex: Int = 0 }
+
+/** [completeCount] 个候选连同注释完整可读，展开页从它们之后接着排。
+ * [tailPadding]：能滑的候选行末尾补的空白（像素），滑到最末时最后一屏也从一个完整的候选开始。 */
+private class CandidateStripWindow(val split: CandidateWindowSplit, val completeCount: Int, val tailPadding: Int = 0,
+    val glossBodyWidthAt: ((Int) -> Int?)? = null, val fits: Map<Int, CandidateFit> = emptyMap(),
+    /** 能滑的那一行排前几个；只排一屏时比 all 少。 */
+    val shownCount: Int = Int.MAX_VALUE)
+
+/**
+ * 一屏完整放得下几个（[enabled] 为假时返回全部个数）。按字宽估，不等排版。
+ * 用在「候选滑到头回弹展开」打开时的联想行：再加栏尾露半截的那一个就是一屏，露全它就到头。
+ */
+@Composable
+private fun rememberFirstScreenCount(texts: List<String>, enabled: Boolean, availablePx: Int,
+    fontSize: androidx.compose.ui.unit.TextUnit, fontFamily: androidx.compose.ui.text.font.FontFamily,
+    itemPadding: androidx.compose.ui.unit.Dp, spacing: androidx.compose.ui.unit.Dp, numbered: Boolean): Int {
+    val density = LocalDensity.current
+    val fontFamilyResolver = androidx.compose.ui.platform.LocalFontFamilyResolver.current
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val textWidths = remember(density, fontFamilyResolver, layoutDirection) {
+        candidateTextWidths(density, fontFamilyResolver, layoutDirection)
+    }
+    return remember(texts, enabled, availablePx, fontSize, fontFamily, itemPadding, spacing, numbered, textWidths) {
+        if (!enabled || texts.isEmpty()) texts.size else {
+            val padding = with(density) { 2 * itemPadding.roundToPx() }
+            val style = candidatePrimaryTextStyle(fontSize, fontFamily, false)
+            val fitting = candidatePrefixCount(texts.size, availablePx, with(density) { spacing.roundToPx() }) { index ->
+                textWidths.of(candidateNumberedText(texts[index], index, numbered), style) + padding
+            }
+            fitting.coerceAtMost(texts.size)
+        }
+    }
+}
+
+/**
+ * 比整条候选栏还宽的长候选（多为整句）怎么放下：先缩小字号，最小到原字号的 3/4；还放不下就缩到两行。
+ * 两行也放不下的仍照旧一行，滑着看完。放得下的候选不受影响。[textWidth] 只在两行时用于折行。
+ */
+class CandidateFit(val fontSize: androidx.compose.ui.unit.TextUnit, val twoLines: Boolean,
+    val textWidth: Int, val totalWidth: Int)
+
+/** 两行时的行高（字号的倍数）。 */
+private const val CANDIDATE_TWO_LINE_SPACING = 1.2f
+
+/** 长候选一行缩字的下限（原字号的倍数）。 */
+private const val CANDIDATE_SHRINK_FLOOR = 0.75f
+
+/** One measured row. Keyboard focus can move its window without changing candidate identities. */
+@Composable
+internal fun FixedCandidateStrip(
+    candidates: List<String>, associations: List<String> = emptyList(), comments: List<String>, visuals: CandidateBarVisuals,
+    callbacks: CandidateBarCallbacks, fontSize: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier,
+    highlightIndex: Int = 0,
+    /** 只有联想（[candidates] 为空）时高亮第几个联想；-1 不高亮。不传就按 [highlightIndex] 规矩。 */
+    associationHighlight: Int? = null,
+    showNumberLabels: Boolean = false,
+    itemSpacing: androidx.compose.ui.unit.Dp = 4.dp,
+    /** 分体中缝（窗口横坐标）；候选先排左侧，越过中缝接着排右侧。 */
+    gapWindowX: Pair<Float, Float>? = null,
+    /** 能左右滑动看后面的候选；右边放不下的候选照常显示、被栏边裁掉，滑过去看全。分体中缝时不滑。 */
+    scrollable: Boolean = false,
+    /** 手指开始滑候选栏（展开着的话收起展开页，免得同一个候选出现两次）。 */
+    onUserScroll: (() -> Unit)? = null,
+    /** 滑到最后几个候选了（接着加载展开列表）。 */
+    onNearEnd: (() -> Unit)? = null,
+    /** 换了这个值（新的编码）就回到最前面。 */
+    scrollKey: Any? = null,
+    /** 每个候选左右的留白，见 [rememberCandidateItemPadding]。 */
+    itemPadding: androidx.compose.ui.unit.Dp = CANDIDATE_ITEM_PADDING,
+    /** 候选栏已按页面定好的注释显示方式（手写里「自动」按显示）；不传就按设置。 */
+    commentMode: CandidateCommentMode? = null,
+    commentsAreGlosses: Boolean = false,
+    /**
+     * 最右一个候选字放得下、只有释义被栏边裁掉时也算「显示了」（实体键盘按这个数分组翻页）。
+     * 不算的话每画一次少报一个，下一组少给一个，一路缩到只剩一个（用户 11-19：开「拼音显示英文」只剩一个候选）。
+     */
+    glossEdgeCounts: Boolean = false,
+    /**
+     * 只排一屏（「候选滑到头回弹展开」打开时）：能滑的那一行只放一开始露出来的候选和栏尾露半截的那一个，
+     * 露全它就滑到头了；一屏没排满时调 [onNearEnd] 接上后面的。
+     */
+    firstScreenOnly: Boolean = false,
+) {
+    val measurer = rememberTextMeasurer()
+    var stripOriginX by remember { mutableStateOf(Float.NaN) }
+    val density = LocalDensity.current
+    // 排窗口只要宽度：只算固有宽度、跨按键记着（见 CandidateTextWidths）；两行排版仍用 measurer。
+    val fontFamilyResolver = androidx.compose.ui.platform.LocalFontFamilyResolver.current
+    val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+    val textWidths = remember(density, fontFamilyResolver, layoutDirection) {
+        candidateTextWidths(density, fontFamilyResolver, layoutDirection)
+    }
+    val inheritedTextStyle = LocalTextStyle.current
+    val commentsAllowed = rememberCandidateCommentsAllowed().let { commentMode ?: it }
+    // 选中底色由整条统一画，换选中的候选时从旧候选滑到新候选（用户 10-21 选 1）；
+    // 候选一变（打字、翻页）就直接落到新位置，打字时什么都不动。
+    var stripRootOrigin by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var focusedBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    // 滑动时选中的候选滑出了候选栏：底色先不画，滑回来再画。
+    var focusedOnScreen by remember { mutableStateOf(true) }
+    val highlightBox = remember { androidx.compose.animation.core.Animatable(androidx.compose.ui.geometry.Rect.Zero,
+        androidx.compose.ui.geometry.Rect.VectorConverter) }
+    var highlightShown by remember { mutableStateOf(false) }
+    // 只有同一组候选里换了选中项才滑；在组合时记下，等新位置量出来再决定滑还是直接落。
+    val highlightMove = remember { HighlightMove() }
+    if (highlightMove.candidates != candidates) highlightMove.animateNext = false
+    else if (highlightMove.index != highlightIndex) highlightMove.animateNext = true
+    highlightMove.candidates = candidates
+    highlightMove.index = highlightIndex
+    // 位置只在这里读，不让候选栏因为量位置而多重组一次。
+    androidx.compose.runtime.LaunchedEffect(highlightBox) {
+        androidx.compose.runtime.snapshotFlow { focusedBounds }.collectLatest { target ->
+            if (target == null) return@collectLatest
+            if (highlightShown && highlightMove.animateNext) {
+                highlightMove.animateNext = false
+                highlightBox.animateTo(target, androidx.compose.animation.core.tween(CANDIDATE_SLIDE_MS * 2,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing))
+            } else { highlightBox.snapTo(target); highlightShown = true }
+        }
+    }
+    val highlightAccent = visuals.accentColor
+    val associationFocus = associationHighlight?.takeIf { candidates.isEmpty() }
+    val highlightVisible = candidates.isNotEmpty() || associationFocus in associations.indices
+    // 候选栏里这条铺满栏高（见 candidateGapTaps），候选照旧上下居中。
+    BoxWithConstraints(modifier.clipToBounds().testTag("candidate-fixed-strip")
+        .onGloballyPositioned { stripOriginX = it.positionInWindow().x; stripRootOrigin = it.boundsInRoot().topLeft }
+        .drawBehind {
+            val rect = highlightBox.value
+            if (highlightShown && highlightVisible && focusedOnScreen && CandidateDropTargets.shared.hoveredBounds == null && rect.width > 0f)
+                drawRoundRect(highlightAccent.copy(alpha = 0.2f), rect.topLeft - stripRootOrigin, rect.size,
+                    androidx.compose.ui.geometry.CornerRadius(5.dp.toPx()))
+        }, contentAlignment = Alignment.CenterStart) {
+        // 中缝在本条内的位置（像素）；未测到位置前按整条排。
+        val localGap = gapWindowX?.takeUnless { stripOriginX.isNaN() }?.let { (l, r) ->
+            val left = (l - stripOriginX).coerceIn(0f, constraints.maxWidth.toFloat())
+            val right = (r - stripOriginX).coerceIn(left, constraints.maxWidth.toFloat())
+            if (right - left >= 1f && left > 0f) left.toInt() to right.toInt() else null
+        }
+        val commentsShown = candidateCommentsVisible(maxWidth.value, density.fontScale, fontSize.value, commentsAllowed)
+        val shownComments = if (commentsShown) comments else emptyList()
+        val all = candidates + associations
+        val focused = associationFocus?.takeIf { it in associations.indices }
+            ?: highlightIndex.takeIf { it in candidates.indices } ?: 0
+        // 画成选中的那一个（纯联想没有高亮时是 -1，一个都不标）。
+        val selectedIndex = if (associationFocus != null && associationFocus !in associations.indices) -1 else focused
+        val viewport = remember(candidates, shownComments) { CandidateStripViewport() }
+        // 小图标、纠错和画出来的一样算进宽度，否则放不下的最后一个候选也算「显示了」，「下一项」移到它时被栏边切掉。
+        val learnedCandidates = LocalLearnedCandidates.current
+        val correctedCandidates = shownCorrections(LocalCorrectedCandidates.current, commentsShown)
+        val fullCorrectionScheme = LocalCorrectionFullScheme.current
+        val twoLineHeight = LocalCandidateRowHeight.current - 4.dp
+        val window = remember(twoLineHeight, viewport, all, candidates.size, shownComments, commentsAreGlosses, scrollable, focused, selectedIndex, fontSize, density, measurer, textWidths, inheritedTextStyle, showNumberLabels, itemSpacing, itemPadding, constraints.maxWidth, AppFonts.candidateFontFamily, AppFonts.commentFontFamily, localGap, learnedCandidates, correctedCandidates, fullCorrectionScheme, firstScreenOnly) {
+            val bodyWidths = HashMap<Int, Int>()
+            fun bodyWidth(index: Int): Int = bodyWidths.getOrPut(index) {
+                val numbered = index < candidates.size
+                val text = candidateNumberedText(all[index], index, showNumberLabels && numbered)
+                val primary = textWidths.of(text,
+                    candidatePrimaryTextStyle(fontSize, AppFonts.candidateFontFamily, index == selectedIndex))
+                primary + with(density) { 2 * itemPadding.roundToPx() }
+            }
+            val fullWidths = HashMap<Int, Int>()
+            fun widthAt(index: Int): Int = fullWidths.getOrPut(index) {
+                val secondaryText = candidateSecondaryText(shownComments.getOrElse(index) { "" },
+                    if (index < candidates.size) correctedCandidates[all[index]].orEmpty() else "", fullCorrectionScheme)
+                val secondary = if (secondaryText.isEmpty()) 0 else textWidths.of(secondaryText,
+                    inheritedTextStyle.merge(TextStyle(fontSize = (fontSize.value * 11f / 19f).sp,
+                        fontWeight = FontWeight.Normal, fontFamily = AppFonts.commentFontFamily))) + with(density) {
+                        (if (index < candidates.size && all[index] in learnedCandidates) learnedCommentGap(fontSize) else 3.dp).roundToPx() }
+                bodyWidth(index) + secondary
+            }
+            // 纠错标记和拼音仍要完整。只有释义可以越过本段右边界。
+            val glossBodyWidthAt: ((Int) -> Int?)? = if (commentsAreGlosses && shownComments.isNotEmpty()) { index ->
+                if (index !in candidates.indices || shownComments.getOrNull(index).isNullOrEmpty() || !correctedCandidates[all[index]].isNullOrEmpty()) null
+                else bodyWidth(index)
+            } else null
+            fun measureFit(index: Int): CandidateFit? {
+                val full = widthAt(index)
+                if (full <= constraints.maxWidth) return null
+                val text = AnnotatedString(candidateNumberedText(all[index], index, showNumberLabels && index < candidates.size))
+                val primary = textWidths.of(text, candidatePrimaryTextStyle(fontSize, AppFonts.candidateFontFamily,
+                    index == selectedIndex))
+                val others = full - primary
+                val room = constraints.maxWidth - others
+                if (room <= 0 || primary <= 0) return null
+                // 一行：按比例缩，每级 0.5sp，不低于原字号 3/4。
+                var size = kotlin.math.floor(fontSize.value * room / primary * 2f) / 2f
+                while (size >= fontSize.value * CANDIDATE_SHRINK_FLOOR) {
+                    val width = textWidths.of(text, candidatePrimaryTextStyle(size.sp, AppFonts.candidateFontFamily,
+                        index == selectedIndex))
+                    if (width <= room) return CandidateFit(size.sp, twoLines = false, width, others + width)
+                    size -= 0.5f
+                }
+                // 两行：字号取原字号 3/4，且两行要放进 40dp 高。两行还放不下就照旧一行，滑着看。
+                val twoLineCap = with(density) { ((twoLineHeight - 4.dp) / (2 * CANDIDATE_TWO_LINE_SPACING)).toSp().value }
+                val twoSize = (kotlin.math.floor(minOf(fontSize.value * CANDIDATE_SHRINK_FLOOR, twoLineCap) * 2f) / 2f).sp
+                val wrapped = measurer.measure(text, candidateTwoLineTextStyle(candidatePrimaryTextStyle(twoSize,
+                    AppFonts.candidateFontFamily, index == selectedIndex), twoSize), maxLines = 2,
+                    constraints = androidx.compose.ui.unit.Constraints(maxWidth = room))
+                return if (wrapped.hasVisualOverflow) null else CandidateFit(twoSize, twoLines = true, room, others + room)
+            }
+            // 比整条还宽的长候选先缩字、再缩到两行（用户 11-01：整句候选后半截看不到）。分体中缝时照旧。
+            val fits = HashMap<Int, CandidateFit?>()
+            fun fitAt(index: Int): CandidateFit? = when {
+                localGap != null -> null
+                index in fits -> fits[index]
+                else -> measureFit(index).also { fits[index] = it }
+            }
+            fun shownWidth(index: Int): Int = fitAt(index)?.totalWidth ?: widthAt(index)
+            // The transparent tap padding may cross the edge without clipping the label.
+            val edgeWidthAt: ((Int) -> Int)? = if (scrollable && localGap == null) { index ->
+                ((glossBodyWidthAt?.invoke(index) ?: shownWidth(index)) - with(density) { itemPadding.roundToPx() })
+                    .coerceAtLeast(0)
+            } else glossBodyWidthAt?.let { body -> { index: Int -> body(index) ?: shownWidth(index) } }
+            val spacing = with(density) { itemSpacing.roundToPx() }
+            val split = if (localGap != null) {
+                splitCandidateWindow(all.size, focused, localGap.first, constraints.maxWidth - localGap.second,
+                    spacing, viewport.firstIndex, edgeWidthAt, ::widthAt)
+            } else {
+                val range = candidateWindow(all.size, focused, constraints.maxWidth,
+                    spacing, windowStart = viewport.firstIndex, edgeWidthAt = edgeWidthAt, widthAt = ::shownWidth)
+                CandidateWindowSplit(range, Int.MAX_VALUE)
+            }
+            val canScroll = scrollable && localGap == null
+            val completeCount = if (canScroll) 0 else {
+                var available = localGap?.first ?: constraints.maxWidth
+                var count = 0
+                for (index in split.range) {
+                    if (localGap != null && count == split.leftCount) available = constraints.maxWidth - localGap.second
+                    val width = shownWidth(index)
+                    if (width > available) {
+                        if (glossEdgeCounts && localGap == null && (glossBodyWidthAt?.invoke(index) ?: Int.MAX_VALUE) <= available) count++
+                        break
+                    }
+                    available -= width + spacing
+                    count++
+                }
+                count
+            }
+            // 只排一屏：露全的这些再加栏尾露半截的那一个（见 firstScreenOnly）。
+            val shownCount = if (firstScreenOnly && canScroll && !split.range.isEmpty())
+                (split.range.last + 2).coerceAtMost(all.size) else all.size
+            CandidateStripWindow(split, completeCount, if (canScroll)
+                candidateTailPadding(shownCount, constraints.maxWidth, spacing, ::shownWidth) else 0, glossBodyWidthAt,
+                fits.mapNotNull { (index, fit) -> fit?.let { index to it } }.toMap(), shownCount)
+        }
+        val visibleIndices = window.split.range
+        val splitLeftCount = window.split.leftCount
+        androidx.compose.runtime.SideEffect {
+            viewport.firstIndex = visibleIndices.first.takeUnless { visibleIndices.isEmpty() } ?: 0
+            // Expanded pagination removes a prefix only. A shifted window must not hide earlier items.
+            // 栏里放不全的长候选不算已显示：展开页从它开始排，能看到全文。
+            if (!scrollable || localGap != null) {
+                callbacks.onVisibleCandidatesChanged?.invoke(if (visibleIndices.first == 0)
+                    candidates.take(window.completeCount) else emptyList())
+                val completeEnd = visibleIndices.first + window.completeCount
+                callbacks.onVisibleAssociationsChanged?.invoke(if (candidates.size >= visibleIndices.first && candidates.size < completeEnd)
+                    associations.take(completeEnd - candidates.size)
+                    else emptyList())
+            }
+        }
+        // 分体：前半段排在中缝左边，后半段从中缝右边开始。
+        val leftCount = splitLeftCount
+        val segments = if (localGap == null) listOf(visibleIndices.toList() to 0)
+            else listOf(visibleIndices.take(leftCount) to 0, visibleIndices.drop(leftCount) to localGap.second)
+        // Shift 拖动指着候选时，选中底色改由候选栏画在手指指着的那个上，原来的先不画。
+        val shiftDragFree = CandidateDropTargets.shared.hoveredBounds == null
+        if (scrollable && localGap == null) {
+            // 只排一屏而这一屏没排满（候选都放得下、后面还有）：接上展开列表填满这一屏。
+            if (firstScreenOnly && all.isNotEmpty() && visibleIndices.last >= all.size - 1) {
+                val fill by rememberUpdatedState(onNearEnd)
+                LaunchedEffect(all.size) { fill?.invoke() }
+            }
+            val rowItems = if (window.shownCount < all.size) all.subList(0, window.shownCount) else all
+            ScrollableCandidateRow(candidates, rowItems, shownComments, visuals, callbacks, fontSize, focused, showNumberLabels,
+                itemSpacing, itemPadding, visibleIndices, window.tailPadding, window.glossBodyWidthAt, window.fits, scrollKey, onUserScroll, onNearEnd,
+                corrections = correctedCandidates,
+                selectionFill = shiftDragFree && !highlightShown,
+                onFocusedBounds = { focusedBounds = it; focusedOnScreen = true },
+                onFocusedGone = { focusedOnScreen = false },
+                firstScreenOnly = firstScreenOnly)
+            return@BoxWithConstraints
+        }
+        val showDividers = candidateDividersShown(itemSpacing, itemPadding)
+        val itemDividerColor = candidateDividerColor(visuals.textColor)
+        segments.forEach { (segmentIndices, offsetPx) ->
+        val segmentPx = if (offsetPx == 0 && localGap != null) localGap.first else constraints.maxWidth - offsetPx
+        Row(Modifier.offset { androidx.compose.ui.unit.IntOffset(offsetPx, 0) }
+            .widthIn(max = with(density) { segmentPx.toDp() }).clipToBounds(),
+            horizontalArrangement = Arrangement.spacedBy(itemSpacing), verticalAlignment = Alignment.CenterVertically) {
+            segmentIndices.forEachIndexed { position, index ->
+                // 联想按词定身份：按下后联想换了一组，手指松开不选中换上来的那个词（和展开页一样）。
+                androidx.compose.runtime.key(index, if (index < candidates.size) "" else all[index]) {
+                CandidateItem(candidateNumberedText(all[index], index, showNumberLabels && index < candidates.size), index, {
+                    if (index < candidates.size) callbacks.onCandidateSelect(index)
+                    else callbacks.onAssociationSelect?.invoke(index - candidates.size)
+                }, visuals.textColor,
+                    comment = shownComments.getOrElse(index) { "" }, isSelected = index == selectedIndex,
+                    accentColor = visuals.accentColor, selectedTextColor = visuals.selectedTextColor,
+                    opaqueComment = visuals.opaqueComments,
+                    textShadow = visuals.textShadow,
+                    fontSize = fontSize, candidateFontFamily = AppFonts.candidateFontFamily,
+                    commentFontFamily = AppFonts.commentFontFamily,
+                    // 纯联想（没有打字候选）沿用联想行原来的标记。
+                    modifier = Modifier.testTag(if (candidates.isEmpty()) "bar-association:$index" else "bar-candidate:$index")
+                        // 分体时中缝两边各自从头排，中缝那里不画竖线。
+                        .then(if (showDividers && position > 0) Modifier.candidateLeadingDivider(itemDividerColor,
+                            itemSpacing, fontSize) else Modifier)
+                        .then(if (index == focused) Modifier.onGloballyPositioned { focusedBounds = it.boundsInRoot(); focusedOnScreen = true } else Modifier),
+                    onLongClick = if (index < candidates.size) callbacks.onCandidateLongPress?.let { action -> { action(index) } } else null,
+                    onSentenceSelection = callbacks.onSentenceSelection.takeIf { index == 0 && !showNumberLabels },
+                    onSentenceSelectionChange = callbacks.onSentenceSelectionChange.takeIf { index == 0 && !showNumberLabels },
+                    onSentenceSelectionEnd = callbacks.onSentenceSelectionEnd.takeIf { index == 0 && !showNumberLabels },
+                    learned = index < candidates.size && all[index] in learnedCandidates,
+                    correction = if (index < candidates.size) correctedCandidates[all[index]].orEmpty() else "",
+                    selectionFill = shiftDragFree && !highlightShown, horizontalPadding = itemPadding, fit = window.fits[index])
+                }
+            }
+        }
+        }
+    }
+}
+
+/**
+ * 能左右滑的候选行：用实际排版判断文字是否放得下，[shown] 指定初始焦点窗口；
+ * 可以一直滑到展开列表里的候选。长候选不截断，滑过去就能看完。
+ * 右边放不下的候选照常显示，被栏边裁掉一截（用户 11-11：长候选后面的候选被藏起来，要拖一下才出来）；
+ * 松手后对齐到候选开头，停下时左边被切掉一半的候选先藏起来（用户 10-31：滑动后左边的候选显示不全）；
+ * 末尾补 [tailPaddingPx] 的空白，滑到最末时也能从一个完整的候选开始。
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ScrollableCandidateRow(
+    candidates: List<String>, all: List<String>, comments: List<String>, visuals: CandidateBarVisuals,
+    callbacks: CandidateBarCallbacks, fontSize: androidx.compose.ui.unit.TextUnit, focused: Int,
+    showNumberLabels: Boolean, itemSpacing: androidx.compose.ui.unit.Dp, itemPadding: androidx.compose.ui.unit.Dp,
+    shown: IntRange, tailPaddingPx: Int, glossBodyWidthAt: ((Int) -> Int?)?, fits: Map<Int, CandidateFit>, scrollKey: Any?,
+    onUserScroll: (() -> Unit)?, onNearEnd: (() -> Unit)?,
+    /** 已按注释显示与否过滤过的纠错标记（注释不显示时为空）。 */
+    corrections: Map<String, String>,
+    selectionFill: Boolean,
+    onFocusedBounds: (androidx.compose.ui.geometry.Rect) -> Unit,
+    onFocusedGone: () -> Unit,
+    firstScreenOnly: Boolean = false,
+) {
+    val start = shown.first.takeUnless { shown.isEmpty() } ?: 0
+    val showDividers = candidateDividersShown(itemSpacing, itemPadding)
+    val itemDividerColor = candidateDividerColor(visuals.textColor)
+    // 新编码或键盘焦点换了一屏：直接从那一屏开始，不带上一次滑到的位置。
+    val listState = remember(scrollKey, start) { androidx.compose.foundation.lazy.LazyListState(start) }
+    var revealed by remember(listState) { mutableStateOf(false) }
+    val currentUserScroll by rememberUpdatedState(onUserScroll)
+    val currentNearEnd by rememberUpdatedState(onNearEnd)
+    val candidateCount by rememberUpdatedState(candidates.size)
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect {
+            if (it is androidx.compose.foundation.interaction.DragInteraction.Start) {
+                revealed = true
+                currentUserScroll?.invoke()
+            }
+        }
+    }
+    LaunchedEffect(listState) {
+        androidx.compose.runtime.snapshotFlow {
+            revealed && (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= candidateCount - 4
+        }.collect { if (it) currentNearEnd?.invoke() }
+    }
+    // 停稳后被左边栏边切掉一部分的候选（滑动、对齐途中为空，全部照常显示）。右边放不下的照常显示、被裁掉。
+    // 比整条还宽的长候选不算，要能滑着看完。
+    val labelPadding = with(LocalDensity.current) { itemPadding.roundToPx() }
+    val cutAtEdge by remember(listState, labelPadding) {
+        androidx.compose.runtime.derivedStateOf {
+            if (listState.isScrollInProgress) emptySet<Int>() else {
+                val info = listState.layoutInfo
+                val viewport = info.viewportEndOffset - info.viewportStartOffset
+                info.visibleItemsInfo.filter {
+                    it.size <= viewport && candidateLabelCutAtStart(it.offset, labelPadding, info.viewportStartOffset)
+                }.mapTo(HashSet()) { it.index }
+            }
+        }
+    }
+    // The expanded page skips only the actual readable prefix. Resting estimates include touch padding.
+    val readablePrefix = remember(listState, labelPadding) {
+        androidx.compose.runtime.derivedStateOf {
+            val info = listState.layoutInfo
+            val items = info.visibleItemsInfo
+            if (listState.isScrollInProgress || items.firstOrNull()?.index != 0) 0 else {
+                val clipped = items.indexOfFirst { !candidateLabelFits(it.offset, it.size, labelPadding,
+                    info.viewportStartOffset, info.viewportEndOffset) }
+                if (clipped < 0) items.size else clipped
+            }
+        }
+    }.value
+    // 只排一屏时，展开页跳过的固定是这一屏：停在开头时量出来记住，拖动中、拖到栏尾都照这个数，
+    // 不然露出最后一个、把第一个拖出去时展开页的起点和格数跟着跳（11-22 他：「拖回左边又多一个 一直在跳变」）。
+    val restingPrefix = remember(listState, all) { intArrayOf(-1) }
+    SideEffect {
+        val layout = listState.layoutInfo
+        if (all.isEmpty() || (layout.viewportEndOffset > layout.viewportStartOffset && layout.visibleItemsInfo.isNotEmpty())) {
+            val prefix = if (!firstScreenOnly) readablePrefix else {
+                if (!listState.isScrollInProgress && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0)
+                    restingPrefix[0] = readablePrefix
+                restingPrefix[0].takeIf { it >= 0 } ?: readablePrefix
+            }
+            callbacks.onVisibleCandidatesChanged?.invoke(candidates.take(prefix))
+            callbacks.onVisibleAssociationsChanged?.invoke(if (prefix > candidates.size)
+                all.subList(candidates.size, prefix.coerceAtMost(all.size)) else emptyList())
+        }
+    }
+    // 露出长候选时不对齐，停在手指松开的地方，才能看到长候选中间的字。
+    val longVisible by remember(listState) {
+        androidx.compose.runtime.derivedStateOf {
+            val info = listState.layoutInfo
+            val viewport = info.viewportEndOffset - info.viewportStartOffset
+            info.visibleItemsInfo.any { it.size > viewport }
+        }
+    }
+    // 松手后很快停住，方便马上点中候选（用户 11-05：惯性太大）。
+    val snapFling = rememberCandidateSnapFlingBehavior(listState,
+        androidx.compose.foundation.gestures.snapping.SnapPosition.Start)
+    val freeFling = rememberCandidateFlingBehavior()
+    val tailPadding = with(LocalDensity.current) { tailPaddingPx.toDp() }
+    // 候选栏不要边缘拉伸回弹（这个文件里的几条横滑行都一样）：回弹没收完时，列表把每次按下都当成接着滑，
+    // 点候选选不上，按着时栏尾藏起来的半截候选还会露出来（用户录屏 11-05：有的手机回弹一直收不完，
+    // 横滑一下才恢复）。
+    LazyRow(Modifier.fillMaxWidth().testTag("candidate-scroll-row"), state = listState,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(end = tailPadding),
+        flingBehavior = if (longVisible) freeFling else snapFling,
+        overscrollEffect = null,
+        horizontalArrangement = Arrangement.spacedBy(itemSpacing), verticalAlignment = Alignment.CenterVertically) {
+        items(all.size) { index ->
+            val hidden = index in cutAtEdge
+            // 栏边藏起来的候选两边不画竖线，免得竖线孤零零挂在栏边。
+            val divided = showDividers && index > 0 && !hidden && (index - 1) !in cutAtEdge
+            val numbered = index < candidates.size
+            if (index == focused) DisposableEffect(Unit) { onDispose { onFocusedGone() } }
+            // 选中的候选停在栏边被藏起来：选中底色也先不画。
+            if (index == focused && hidden) SideEffect { onFocusedGone() }
+            CandidateItem(candidateNumberedText(all[index], index, showNumberLabels && numbered), index, {
+                if (numbered) callbacks.onCandidateSelect(index)
+                else callbacks.onAssociationSelect?.invoke(index - candidates.size)
+            }, visuals.textColor,
+                comment = comments.getOrElse(index) { "" }, isSelected = index == focused,
+                accentColor = visuals.accentColor, selectedTextColor = visuals.selectedTextColor,
+                opaqueComment = visuals.opaqueComments,
+                textShadow = visuals.textShadow,
+                fontSize = fontSize, candidateFontFamily = AppFonts.candidateFontFamily,
+                commentFontFamily = AppFonts.commentFontFamily,
+                modifier = if (hidden) Modifier.alpha(0f).clearAndSetSemantics {} else Modifier.testTag("bar-candidate:$index")
+                    .then(if (divided) Modifier.candidateLeadingDivider(itemDividerColor, itemSpacing, fontSize) else Modifier)
+                    .then(if (index == focused) Modifier.onGloballyPositioned { onFocusedBounds(it.boundsInRoot()) } else Modifier),
+                onLongClick = if (numbered) callbacks.onCandidateLongPress?.let { action -> { action(index) } } else null,
+                onSentenceSelection = callbacks.onSentenceSelection.takeIf { index == 0 && !showNumberLabels },
+                    onSentenceSelectionChange = callbacks.onSentenceSelectionChange.takeIf { index == 0 && !showNumberLabels },
+                    onSentenceSelectionEnd = callbacks.onSentenceSelectionEnd.takeIf { index == 0 && !showNumberLabels },
+                learned = numbered && all[index] in LocalLearnedCandidates.current,
+                correction = if (numbered) corrections[all[index]].orEmpty() else "",
+                selectionFill = selectionFill,
+                interactive = !hidden, horizontalPadding = itemPadding, fit = fits[index])
+        }
+    }
+}
+
+// Latin and CJK fallback fonts have different ascents. Anchor actual baselines,
+// not just differently sized text boxes, to the same position in the candidate row.
+private fun Modifier.candidateBaseline(fontSize: androidx.compose.ui.unit.TextUnit): Modifier = layout { measurable, constraints ->
+    val child = measurable.measure(constraints.copy(minHeight = 0))
+    val height = (fontSize.toPx() * 1.35f).roundToInt().coerceIn(constraints.minHeight, constraints.maxHeight)
+    val baseline = child[FirstBaseline]
+    layout(child.width, height) {
+        child.placeRelative(0, (fontSize.toPx() * 1.05f).roundToInt() - baseline)
+    }
+}
+
+/** 分体工具栏的一侧：按两侧宽度比例分配图标；拖动排序后合回整条顺序保存。 */
+@Composable
+private fun ToolbarHalf(
+    actions: List<ToolbarAction>, visuals: CandidateBarVisuals, tint: Color, amplitude: Float,
+    voiceState: RecognitionState, onReorder: ((List<String>) -> Unit)?,
+    leftWidth: androidx.compose.ui.unit.Dp, rightWidth: androidx.compose.ui.unit.Dp, rightSide: Boolean,
+) {
+    val total = (leftWidth.value + rightWidth.value).coerceAtLeast(1f)
+    val leftCount = kotlin.math.round(actions.size * leftWidth.value / total).toInt().coerceIn(0, actions.size)
+    val left = actions.take(leftCount)
+    val right = actions.drop(leftCount)
+    val mine = if (rightSide) right else left
+    if (mine.isEmpty()) return
+    val save: ((List<String>) -> Unit)? = onReorder?.let { persist ->
+        { ids: List<String> ->
+            persist(if (rightSide) left.map { it.item.id } + ids else ids + right.map { it.item.id })
+        }
+    }
+    ReorderableToolbar(mine, visuals.accentColor, save, modifier = Modifier.fillMaxSize()) { action ->
+        ToolbarActionButton(action, visuals, tint, amplitude, voiceState, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+/** 两端按钮平时的底相对中间按钮按下时的浓度；渲染对比测试里可以换值。 */
+internal val LocalEdgeButtonStrength = androidx.compose.runtime.staticCompositionLocalOf { 0.45f }
+
+/** 两端按钮的形状：圆（原样）、和空闲工具栏一样宽的胶囊、与键盘卡片同心的圆角胶囊。 */
+internal enum class EdgeButtonStyle { CIRCLE, CAPSULE, CONCENTRIC }
+internal val LocalEdgeButtonStyle = androidx.compose.runtime.staticCompositionLocalOf { EdgeButtonStyle.CAPSULE }
+
+/** Shift 拖到候选时选中底色滑过去的时长；换选中候选时用它的两倍。 */
+private const val CANDIDATE_SLIDE_MS = 120
+
+/**
+ * Shift 拖到候选上时（用户 10-21）：在候选栏里画出拖线的那一段（键盘那边只画到字母区为止），
+ * 并把选中底色挪到手指指着的候选上（与平时选中候选同一样式，任何时候只亮一个）；换候选时底色滑过去（120ms）。
+ * 只在绘制时读取拖动状态，不让候选栏重组。
+ */
+@Composable
+private fun Modifier.shiftDragOverlay(rootOrigin: () -> androidx.compose.ui.geometry.Offset, accent: Color): Modifier {
+    val drops = CandidateDropTargets.shared
+    val hovered = drops.hoveredBounds
+    // 底色和选中候选一样（强调色两成、5dp 圆角），不加边框；第一次指到候选时直接出现，之后换候选时滑过去。
+    val box = remember { androidx.compose.animation.core.Animatable(androidx.compose.ui.geometry.Rect.Zero,
+        androidx.compose.ui.geometry.Rect.VectorConverter) }
+    var hadTarget by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(hovered) {
+        if (hovered == null) { hadTarget = false; return@LaunchedEffect }
+        if (!hadTarget) { box.snapTo(hovered); hadTarget = true }
+        else box.animateTo(hovered, androidx.compose.animation.core.tween(CANDIDATE_SLIDE_MS))
+    }
+    return drawWithContent {
+        drawContent()
+        val origin = rootOrigin()
+        val rect = box.value
+        if (drops.hoveredBounds != null && rect.width > 0f) {
+            drawRoundRect(accent.copy(alpha = 0.2f), rect.topLeft - origin, rect.size,
+                androidx.compose.ui.geometry.CornerRadius(5.dp.toPx()))
+        }
+        drops.dragLine?.let { (from, to) ->
+            clipRect {
+                drawLine(accent, from - origin, to - origin, strokeWidth = 6.dp.toPx(),
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+        }
+    }
+}
+
+/** 候选栏两端按钮从圆开始拉长成胶囊的候选栏宽度，和拉到最宽 52dp 的宽度。 */
+private val EDGE_STRETCH_START = 940.dp
+private val EDGE_STRETCH_FULL = 1400.dp
+
+/** 空闲时收起键从「和展开键同形同位」开始过渡的候选栏宽度，和过渡到等分格胶囊的宽度。 */
+private val TOOLBAR_SLOT_BLEND_START = 600.dp
+private val TOOLBAR_SLOT_BLEND_FULL = 840.dp
+
+/**
+ * 拼音里的编辑光标“|”用主题强调色加粗画，和拼音字母区分开（用户 10-21）。其余文字照旧。
+ * 柔和蓝、黑白这类强调色和拼音几乎同色的主题，改用首选候选的选中字色；光标只是一道线，不垫底色（用户 10-21）。
+ * [alpha] 是闪烁的当前亮度。
+ */
+internal fun sentenceSelectionText(text: String, owner: com.kingzcheung.xime.service.SentenceEditSession?,
+    accent: Color, base: AnnotatedString = AnnotatedString(text)): AnnotatedString {
+    val plain = text.replace("\u200B", "")
+    val range = owner?.displaySelection(plain) ?: return base
+    fun displayOffset(offset: Int): Int {
+        var plainCount = 0
+        for (index in text.indices) {
+            if (plainCount == offset) return index
+            if (text[index] != '\u200B') plainCount++
+        }
+        return text.length
+    }
+    val start = displayOffset(range.first)
+    val end = displayOffset(range.last + 1)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        append(base)
+        addStyle(androidx.compose.ui.text.SpanStyle(background = accent.copy(alpha = 0.3f)), start, end)
+    }
+}
+
+internal fun preeditWithCaret(text: String, accent: Color, textColor: Color = Color.Unspecified,
+                              selectedText: Color = accent, alpha: Float = 1f): AnnotatedString {
+    val caret = text.indexOf(com.kingzcheung.xime.service.PREEDIT_CARET)
+    if (caret < 0) return AnnotatedString(text)
+    val style = if (textColor != Color.Unspecified && colorsClose(accent, textColor))
+        androidx.compose.ui.text.SpanStyle(color = selectedText.copy(alpha = selectedText.alpha * alpha),
+            fontWeight = FontWeight.Bold)
+    else androidx.compose.ui.text.SpanStyle(color = accent.copy(alpha = accent.alpha * alpha), fontWeight = FontWeight.Bold)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        addStyle(style, caret, caret + 1)
+    }
+}
+
+/** 两个颜色肉眼几乎分不开（RGB 各分量差都很小）。 */
+private fun colorsClose(a: Color, b: Color): Boolean =
+    kotlin.math.abs(a.red - b.red) < 0.12f && kotlin.math.abs(a.green - b.green) < 0.12f &&
+        kotlin.math.abs(a.blue - b.blue) < 0.12f
+
+/** 列表里一项当前所占的横向范围（像素，相对视口）。 */
+internal data class CandidateItemSpan(val index: Int, val start: Int, val end: Int)
+
+/**
+ * 让第 [index] 项完整露出还要滚多少像素：已完整露出是 0，往前露出是负数；紧挨在最后一个可见项后面、还没排出来时
+ * 先滚到它露头（下一轮按量出的宽度补齐）；离得更远（如从最后一个绕回第一个）返回 null，直接跳到那一项。
+ */
+internal fun candidateRevealDelta(index: Int, visible: List<CandidateItemSpan>, viewportStart: Int, viewportEnd: Int,
+    spacing: Int): Int? {
+    visible.firstOrNull { it.index == index }?.let { item ->
+        return when {
+            item.start < viewportStart -> item.start - viewportStart
+            item.end > viewportEnd -> minOf(item.end - viewportEnd, item.start - viewportStart)
+            else -> 0
+        }
+    }
+    val last = visible.lastOrNull() ?: return null
+    return if (index == last.index + 1) maxOf(last.end - viewportEnd, 0) + spacing + 1 else null
+}
+
+private suspend fun androidx.compose.foundation.lazy.LazyListState.revealItem(index: Int, spacing: Int) {
+    // 等这一帧排完再量：高亮换了的那一项字重会变，宽度以新排的为准。
+    androidx.compose.runtime.withFrameNanos { }
+    repeat(3) {
+        val info = layoutInfo
+        val spans = info.visibleItemsInfo.map { CandidateItemSpan(it.index, it.offset, it.offset + it.size) }
+        when (val delta = candidateRevealDelta(index, spans, info.viewportStartOffset, info.viewportEndOffset, spacing)) {
+            null -> { scrollToItem(index); return }
+            0 -> return
+            else -> scrollBy(delta.toFloat())
+        }
+    }
+}

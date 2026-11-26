@@ -1,0 +1,298 @@
+# Rime schema
+# encoding: utf-8
+# T9 拼音九键（与 pinyin_simp 共享字典）
+# 参考雾凇拼音方案：数字序列直接由 RIME speller algebra 展开，
+# 引擎原生处理数字→拼音转换和多音节歧义消解。
+# 左侧候选区由 T9PinyinMap librime-t9 计算展示。
+# CyLM（CyIME-Windows tools/cylm）：rime 用户目录里有这些文件时，用它的最优整句替换整句位。
+# 只有“装到我的设备”包带这些文件；没有时打开失败一次，保持 Rime 原整句。与 26 键 rime_ice 同一套文件和参数。
+cylm:
+  lexicon: cylm_lexicon.cylx
+  model: cylm_model.lm
+  adapt: cylm_adapt.tsv
+  params: "mu=0.04;eos=0.6;abbrev_full=-4;incremental=1;beam=8;per_span=8;per_span_abbrev=16;per_span1=24;nbest=4;t9_beam=6;t9_per_span=6;skip_inner=1;hit_cap=5000;word_cap=50000;id_cap=50000;dec_cap=25000;nbest=16;typo=-3;typo_first=8.4;adapt_add=1.0"
+  budget_ms: 6
+t9:
+  joint_decoder: true
+  source_budget: 128
+  pool_budget: 64
+  dictionary_beam: 16
+  sentence_beam: 24
+  result_budget: 12
+  # 整串的组句结果显示前几条（最多 display_sentences 条），后面接较短的词；0 为全部显示。
+  display_sentences: 1
+  # 改为 3 时，第 2、3 条整句只在 9 个键以上显示（短输入的备选整句会把“的”“觉得”挤出前四）。
+  # 2026-10-18 回放：长句目标进前五 85%→92%、首选不变，但连续打字逐键平均耗时 +1 ms 超出噪声带，
+  # 未过速度门禁，暂不开启（pinyin26-word-model-20261018.md）。
+  more_sentences_min_keys: 9
+  spelling_penalty: 5.0
+  word_penalty: 8.0
+  # 最后一个音节还没打完（542 是 jia，也是 jian、jiang、jiao 的开头）：整句在最后几个音节里另查一次补全的音节，补全的词按打完了算
+  # 词组模型分数，每少打一个键扣这么多（自然对数）。从第一个键起的词要三个音节以上（一段时间），两个音节的（打完 shijia 要的是史嘉）不补。
+  # 没有这条时「搁置了一段时」+ 542 出「何止可以断食加」，打完 jian 才对。只影响整句，候选里的词不变。0 为关闭。
+  # 2026-11-20 云端同源引擎：250 句截掉最后一个音节的一半（1022 条）首选对 7 → 238 条；停在整音节的 841 条 566 → 566；整句 211/250 不变。
+  tail_completion_weight: -3.0
+  # 停顿后的错字补查（少按一个数字、相邻两个数字按反、按到上下左右相邻的键；cyime_edit_schema）只加在第 3 位以后，
+  # 而且纠正出来的词句要比现在的第一条在词组模型里高出这么多（自然对数，3.0 约 20 倍）才给。没有这道门槛时，
+  # 没打错的输入也会多出一条拼凑的句子（云端 550 词 + 120 句：前三被改 17 词 19 句；3.0 时 1 词 0 句）。
+  # 没有词组模型文件时不设门槛。
+  digit_edit_margin: 3.0
+  # 停顿后的长句模型重排已停用（2026-10-09 同语料回放：停顿后首选只多对 3/488 字，
+  # 同时拖慢逐键解码并在停顿后改动候选）。排序只依据词权与语法 n-gram；
+  # 恢复时在此加回 sentence_model: t9_sentence，并重跑九键回放与速度门禁。
+  sentence_weight: 0.25
+  # 词组模型（tools/ime_lab/ngram）：存在 t9_ngram.lm 时，组句每个词的分数统一为
+  # ln P(词 | 前面的词)，取代词库权重、语法搭配与每词扣分；文件不存在时保持原算法。
+  ngram_model: t9_ngram
+  # 第一个词按“出现在句首的概率”打分，而不是总体词频（如“着”“么”很常见但几乎不在句首）。
+  ngram_sentence_start: true
+  # 句尾概率强度：整句排序时加上“在这里结束”的概率；打字途中不一定是句尾，强度由调参集确定，0 为不用。
+  ngram_eos_weight: 0
+  # 句尾语气词（与 app/data/sentence_final_particles.txt 同一张表，构建时检查）。2026-11-02「礼貌吗打不出来」：
+  # 九键 5462662 只显示一条整句「济南吗」，「礼貌吗」整个候选栏都没有。下面三条只在输入能以语气词结尾时起作用：
+  # 1. 前三条整句里有以语气词结尾的，就按 particle_eos_weight 加上“句子在这里结束”的概率排（我们吗 胜过 我们那）；
+  # 2. 第一个词后面紧跟语气词时按二元（前一个词）算，句首三元只来自少数单句消息，曾让「礼貌嘛」压过「礼貌吗」；
+  # 3. 再多显示一条整句：语气词前换成别的词的最好一条（济南吗 后面是 礼貌吗），和第一条差距在 margin 以内才给。
+  # 电脑同源引擎 + 公开 v3 词组模型，常用词 +吗 3000 条：首选 1430→1866，前四 1499→2381；+呢、+吧（各 1500）
+  # 首选 995→1138、880→1106；单打 3000 个词首选只变 1 个（我把→我吧），日常整句 217 句 179→180。
+  final_particles: [吧, 呗, 呢, 吗, 啊, 嘛, 啦, 呀, 哦, 咯, 哟, 哇, 嘞, 喽]
+  # 2026-11-02 电脑九键回放门禁没过（打到一半 我把→我吧、你那→你吗、我妈→我吗，工作量增加），先全部关掉，等改成只在停顿后起作用再开。
+  particle_eos_weight: 0
+  particle_bigram_after_start: false
+  particle_alternative_margin: 0
+  # 用户学习层占比 λ：词分数 = ln((1-λ)·P底座 + λ·P用户)，P用户取用户词库的上屏占比（近期选过的更高）；底座模型不被改写，0 为不学习。
+  ngram_user_weight: 0.05
+  # 整段输入就是一个两字以上、拼全了的词时（944326 = 指导/知道/直到），按用户最近选过哪个分这些词的概率，占比 κ。
+  # 只看最近选的（每多 200 次上屏，分量降到约三分之一），很久以前选的、单字、简拼都不动；这些词的总概率不变，长句排位不动。
+  # 2026-11-13「卡词频」：九键 指导 要选 4 次才到第一、换回要 6 次、打 200 个别的词后掉回第 2。0 为不用。
+  ngram_user_input_weight: 0.9
+  # 词库先验 μ：语料里没见过的词库词（细胞词库、生僻词）按 ln((1-μ)·P拆字 + μ·P词库频率) 计分，
+  # 让“无精二”这类词首次也能排上；0 为不用。取值由调参集回放确定。
+  ngram_dictionary_prior: 0.02
+  # 同一串字有多种分词时（如“那你还”与“那你／还”），整串的概率是各种分词之和；false 时只取最好的一种。
+  ngram_merge_segmentations: false
+  # 单按一个键（2–9）时，组句首选是完整韵母字（额、啊、哦），而这个键作声母开头的某个字比它常用 e^margin 倍以上，
+  # 就把那个字排第一，完整韵母字排第二。2026-11-05「打一个 d 默认出额嗯饿」：句首或「就」后面词组模型给额/饿的分
+  # 高于「的」，「的」又要扣简拼分。3.0 = 常用 20 倍：只有 3 的「的」够格（6 的「你」、2 的「不」都不到）；0 为不用。
+  single_key_initial_margin: 3.0
+  # 语料里多半是错别字的二元搭配，按没见过的搭配计分（只用后一个词自身的概率）。2026-11-05「就觉的」：
+  # 语料常把「觉得」写成「觉的」，ln P(的|就 觉) 达 -0.66，「精防肩撞就」后打 58333 首选成了「觉的」。
+  ngram_typo_bigrams: ["觉 的"]
+  # 少见读音扣分（cyime_readings.txt，构建时由词库生成）：词组模型只给字词打分，不分读音，
+  # 所以“的”按 di（目的）读也照样高分，打 momodi 出“默默的”而不是“默默地”。这里按词库里各读音的频率比扣分。
+  reading_table: cyime_readings
+  # 适应元书输入法的配置，是否显示 rime 中原始的预编辑文本，默认为 true
+  # true: 对 preedit 不做处理，显示 rime 返回的原始 preedit 值。
+  #       如果想通过 lua 自己调整 preedit 的显示，可以设置为 true。
+  # false: 根据候选字 comment 显示转换后的 preedit 内容。
+  #        注意：请务必保证候选字 comment 有效且正确，否则可能导致预编辑文本显示异常。
+  isDisplayOriginalPreedit: false
+
+  # 日期翻译器开关（true=开启，false=关闭） 参考白霜实现，感谢白霜方案
+  enable_date_translator: true
+
+  # 超越输入序列长度，借助简拼匹配长词召回开关（true=开启，false=关闭）
+  # 通过补丁注入 derive 简拼，让"几乎把/几乎从"等简拼长词能被 RIME 原生召回。
+  # 默认开启；关闭后简拼匹配长词不召回（仅完整拼音词、单字）。
+  enable_abbrev_recall: true
+
+  # 日期翻译器触发词配置 参考白霜实现，感谢白霜方案
+  date_translator:
+    date: riqi
+    time: sj
+    week: xq
+    datetime: dt
+    timestamp: ts
+    lunar: nl
+    # 候选插入位置（默认 2，即第二位）
+    idx: 2
+
+# 停顿后的错字补查用的索引（构建时生成，见 tasks-chinese.gradle.kts）；门槛见上面 t9/digit_edit_margin。
+cyime_edit_schema: cyime_digit_edit
+
+cyime_particle_shortcuts:
+  __include: cyime_particle_shortcuts:/common
+  alphabet: "22233344455566677778889999"
+
+schema:
+  schema_id: t9_pinyin
+  dependencies:
+    - cyime_t9_english
+    - cyime_digit_edit
+    - cyime_digit_tap
+  name: 中文九键
+  version: "2.2"
+  description: |
+    拼音九键方案，使用 ABC/DEF/GHI/JKL/MNO/PQRS/TUV/WXYZ 键位
+
+# 开关
+switches:
+  - name: ascii_mode
+    reset: 0
+    states: [ 中文, 西文 ]
+  - name: full_shape
+    states: [ 半角, 全角 ]
+  - name: ascii_punct
+    reset: 0
+    states: [ 。，, ．， ]
+  - name: traditionalization
+    states: [ 简, 繁 ]
+  - name: emoji
+    reset: 0
+    states: [ 无表情, 表情 ]
+
+engine:
+  processors:
+    - t9_processor
+    - ascii_composer
+    - recognizer
+    - key_binder
+    - speller
+    - punctuator
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - ascii_segmentor
+    - matcher
+    - abc_segmentor
+    - punct_segmentor
+    - fallback_segmentor
+  translators:
+    - t9_date_translator
+    - punct_translator
+    - script_translator
+    # 生僻字（设置「生僻字」，默认关；关着时只看一下开关就返回），见 lua/cyime_rare_chars.lua。
+    - lua_translator@*cyime_rare_chars
+    - t9_english_translator@t9_english
+  filters:
+    - cyime_candidate_policy
+    - t9_filter
+    # 时间、日期、星期后面接当前时间和日期（设置 › 语言与方案 › 中文输出，默认关）。
+    - cyime_datetime
+    - simplifier@emoji
+    # 打符号名出符号（设置 › 语言与方案 › 中文输出，默认关）：加号后面多出 +。
+    - simplifier@cyime_symbols
+    # 打希腊字母名出希腊字母（设置 › 语言与方案 › 中文输出，默认关）：xita 第 3 个候选是 θ Θ，见 lua/cyime_greek_letters.lua。
+    - lua_filter@*cyime_greek_letters
+    - simplifier@traditionalize
+    # 我的短语里写的「余」照写的出（余宛如），见 traditionalize_user。
+    - simplifier@traditionalize_user
+    - uniquifier
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba9876543210
+  initials: zyxwvutsrqponmlkjihgfedcba9876543210
+  delimiter: " '"
+  algebra:
+    # 简拼规则
+    - abbrev/^([a-z]).+$/$1/
+    - abbrev/^([zcs]h).+$/$1/
+    # 拼音容错规则
+    - derive/^([nl])ve$/$1ue/
+    - derive/^([jqxy])u/$1v/
+    - fuzz/un$/uen/
+    - fuzz/ui$/uei/
+    - fuzz/iu$/iou/
+    - fuzz/([aeiou])ng$/$1gn/
+    # T9 keys already encode letter ambiguity; do not treat sho (746) as shou (7468).
+    - fuzz/ong$/on/
+    - fuzz/ao$/oa/
+    - fuzz/([iu])a(o|ng?)$/a$1$2/
+    # 九宫格数字映射（derive 创建双向映射：数字↔字母）
+    - derive/[abc]/2/
+    - derive/[def]/3/
+    - derive/[hgi]/4/
+    - derive/[jkl]/5/
+    - derive/[omn]/6/
+    - derive/[pqrs]/7/
+    - derive/[tuv]/8/
+    - derive/[wxyz]/9/
+
+translator:
+  dictionary: rime_ice
+  max_homophones: 32
+  max_sentences: 3
+  prism: t9_pinyin
+  spelling_hints: 100
+  always_show_comments: true
+  comment_format: []
+  preedit_format:
+    - xlit/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/
+
+cyime:
+  candidate_policy: true
+
+# amzxyz/RIME-LMDG, CC-BY-4.0. The build pins and verifies the bundled model.
+grammar:
+  language: wanxiang-lts-zh-hans
+  collocation_max_length: 6
+  collocation_min_length: 2
+  collocation_penalty: -14
+  non_collocation_penalty: -6
+  weak_collocation_penalty: -100
+  rear_penalty: -18
+
+punctuator:
+  import_preset: default
+
+recognizer:
+  patterns:
+    punct: "^/([0-9]|10|[A-Za-z]*?)$"
+
+key_binder:
+  bindings:
+    - { when: has_menu, accept: 1, send: apostrophe }
+
+editor:
+  bindings:
+    space: confirm
+
+# Whole English words from the bundled melt_eng sources, indexed by T9 digits.
+# Native table candidates retain their original casing and global selection index.
+# 中英混合词（B站、T恤、A股，雾凇 26 键的 cn_en 表，字母 + 全拼）也在这张表里，按英文词一样排、一样学。
+t9_english:
+  dictionary: cyime_t9_english
+  enable_completion: false
+  enable_sentence: false
+  enable_user_dict: true
+  initial_quality: 0.2
+  # 四个键以上的整词和中英混合词（B站）：这里给的分高于单字，保证进入候选规则（cyime_candidate_policy）排的前 64 个，
+  # 再由它放到所有拼全了的中文候选后面，最早第 6 位。选过的词照常按用户词频往前排。2026-11-08 以前排在全部中文后面
+  # （九键 shit 第 87、14 键 B站 第 118），等于打不出来。三个键以下的纯英文词不变。
+  exact_quality: 1.01
+  comment_format: []
+  # 英文词后接剩余数字（steam42 这类）会挤掉中文候选，默认不生成。
+  digit_suffixes: false
+  # 按到第 4 个键起，给出以所按键开头的最常用的 3 个英文词（termin… 出 terminal），排在整词英文之后。
+  completion_limit: 3
+
+# 简/繁（设置 → 语言与方案 → 繁体输出）：与 26 键同一张台湾正体转换表，见 opencc/cyime_s2tw.json。
+# 候选里显示表情（设置 › 语言与方案 › 中文输出，默认关）：打「开心」在词后面多出 😄。
+# 表情表与 26 键雾凇方案共用 opencc/emoji.json；输入法按键前按设置写 emoji 选项（ImeKeyRouter）。
+emoji:
+  option_name: emoji
+  opencc_config: emoji.json
+  inherit_comment: false
+
+# 打符号名出符号（默认关）：打「加号」「问号」「括号」时词后面多出 +、？ ?、（） ()；词本身位置不变。
+# 表与 26 键共用 opencc/cyime_symbols.json；输入法按键前按设置写 cyime_symbol_names 选项（ImeKeyRouter）。
+cyime_symbols:
+  option_name: cyime_symbol_names
+  opencc_config: cyime_symbols.json
+  inherit_comment: false
+
+traditionalize:
+  option_name: traditionalization
+  opencc_config: cyime_s2tw.json
+  tips: none
+  # 短语（user_table）交给 traditionalize_user。
+  excluded_types: [user_table]
+
+# 我的短语按 cyime_s2tw_user.json 转：没有词组管着的「余」照写的出（姓余，用户 11-12），别的字照常转。
+# 其他候选上面已经转过（simplified），不再转。
+traditionalize_user:
+  option_name: traditionalization
+  opencc_config: cyime_s2tw_user.json
+  tips: none
+  excluded_types: [simplified]
