@@ -5,16 +5,16 @@
     <string name="subtype_label_wubi" translatable="false">CyIME-K</string>
     <string name="keyboard_name" translatable="false">CyIME-K</string>
     <string name="ime_service_label" translatable="false">CyIME-K</string>
-    <string name="settings_title">CyIME 设置</string>
+    <string name="settings_title">CyIME-K 设置</string>
     <string name="section_model_download">模型下载</string>
     <string name="item_wait_wifi_title">等连上 Wi-Fi 再下载模型</string>
     <string name="item_wait_wifi_summary">语音、联想、手写等模型共约 %1$s；现在用的是移动数据，点这里用流量下载</string>
     <string name="status_wait_wifi">等 Wi-Fi</string>
     <string name="section_setup">配置选择</string>
     <string name="item_enable_ime_title">启用输入法</string>
-    <string name="item_enable_ime_summary">在系统设置中启用 CyIME</string>
+    <string name="item_enable_ime_summary">在系统设置中启用 CyIME-K</string>
     <string name="item_select_ime_title">选择输入法</string>
-    <string name="item_select_ime_summary">将 CyIME 设为当前输入法</string>
+    <string name="item_select_ime_summary">将 CyIME-K 设为当前输入法</string>
     <string name="status_set">已设置</string>
     <string name="status_not_set">未设置</string>
     <string name="item_setup_guide_title">按设备推荐配置</string>

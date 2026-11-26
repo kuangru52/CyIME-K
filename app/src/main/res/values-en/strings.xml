@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_title">CyIME Settings</string>
+    <string name="settings_title">CyIME-K Settings</string>
     <string name="section_model_download">Model downloads</string>
     <string name="item_wait_wifi_title">Download models on Wi-Fi</string>
     <string name="item_wait_wifi_summary">Voice, prediction and handwriting models, about %1$s in total. You are on mobile data; tap to download now anyway</string>
     <string name="status_wait_wifi">Waiting for Wi-Fi</string>
     <string name="section_setup">Setup</string>
     <string name="item_enable_ime_title">Enable keyboard</string>
-    <string name="item_enable_ime_summary">Turn on CyIME in system settings</string>
+    <string name="item_enable_ime_summary">Turn on CyIME-K in system settings</string>
     <string name="item_select_ime_title">Choose keyboard</string>
-    <string name="item_select_ime_summary">Make CyIME your current keyboard</string>
+    <string name="item_select_ime_summary">Make CyIME-K your current keyboard</string>
     <string name="status_set">Done</string>
     <string name="status_not_set">Not set</string>
     <string name="item_setup_guide_title">Recommended setup for this device</string>
