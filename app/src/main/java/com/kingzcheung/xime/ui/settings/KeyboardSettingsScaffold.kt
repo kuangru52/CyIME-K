@@ -240,10 +240,14 @@ internal fun KeyboardSettingsScaffold(
                     elevation = ButtonDefaults.filledTonalButtonElevation(defaultElevation = 3.dp, pressedElevation = 3.dp),
                     onClick = {
                         // 已选中 CyIME：直接打开试打框，键盘弹出就能打字。
-                        when {
-                            selected -> typing = true
-                            enabled -> imm?.showInputMethodPicker()
-                            else -> context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+                        if (selected) {
+                            typing = true
+                        } else {
+                            try {
+                                context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+                            } catch (e: Exception) {
+                                context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                            }
                         }
                         autoShow = true
                     },

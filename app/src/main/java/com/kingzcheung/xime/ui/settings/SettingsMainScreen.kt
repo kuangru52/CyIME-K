@@ -178,8 +178,11 @@ fun SettingsMainContent(
                         status = if (entryStatus.imeEnabled) stringResource(R.string.status_set) else stringResource(R.string.status_not_set),
                         statusTone = if (entryStatus.imeEnabled) SettingsStatusTone.OK else SettingsStatusTone.WARNING,
                         onClick = {
-                            val intent = Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
-                            context.startActivity(intent)
+                            try {
+                                context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+                            } catch (e: Exception) {
+                                context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                            }
                         }
                     )
                     HorizontalDivider(

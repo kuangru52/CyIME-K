@@ -234,6 +234,9 @@ fun KeyboardLayout(
         it.copy(uppercaseKeyLabels = letterLabelsUppercase(it, isAsciiMode, uiState.inputProfile))
     }
     // 分体两半贴住左右边：不套用居中的键宽上限。
+    val isLxsq17 = uiState.currentSchemaId == com.kingzcheung.xime.settings.DoublePinyinScheme.LXSQ17_ID ||
+        letterLayout?.id == "qwerty_lxsq17" ||
+        (keyRows.size >= 3 && keyRows[0].size == 6 && keyRows[1].size == 6 && keyRows.getOrNull(2)?.size == 5)
     CompositionLocalProvider(LocalKeyboardExplicitWidth provides (LocalKeyboardExplicitWidth.current || splitKeyboard),
         LocalDoublePinyinKeyHints provides dpKeyHints, LocalKeyboardInputPreferences provides keyLabelPrefs) {
     KeyboardKeySpacingScope(Modifier.fillMaxSize(),
@@ -242,10 +245,10 @@ fun KeyboardLayout(
         rows = 4f + numberRowWeight,
         widthFraction = if (splitKeyboard) SplitKeyboardGeometry.keyWidthFraction(
             maxWidth.value, splitGapFraction, splitGutterDp) else 1f,
-        policy = KeyVisualPolicy.Qwerty,
+        policy = if (isLxsq17) KeyVisualPolicy.Lxsq17 else KeyVisualPolicy.Qwerty,
         allowShrink = uiState.isFloatingMode,
         applyGutter = true,
-        growthSpacing = KeysConfigHelper.getKeyboardKeyConfig().spacingFor("qwerty"),
+        growthSpacing = KeysConfigHelper.getKeyboardKeyConfig().spacingFor(if (isLxsq17) "qwerty_lxsq17" else "qwerty"),
         // 分体两半贴边、中缝按 8dp 外边距算（SplitKeyboardGeometry.gutterDp），加宽按键不改分体。
         widenKeys = LocalKeyboardInputPreferences.current.wideKeys && !splitKeyboard,
     ) { bodyModifier ->

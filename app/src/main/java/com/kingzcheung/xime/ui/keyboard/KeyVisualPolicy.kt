@@ -35,6 +35,15 @@ internal data class KeyVisualPolicy(
             maxKeyWidth = 62f, minGutter = 8f,
         )
 
+        /** 乱序17 键布局（6 列）：参考格宽为 344f / 6f，在手机上保持与 26 键完全相同的 4.5dp/5.5dp 默认间距。 */
+        val Lxsq17 = KeyVisualPolicy(
+            gapX = 4.5f, gapY = 5.5f,
+            minGapX = 2.5f, minGapY = 3f,
+            maxGapX = 12f, maxGapY = 11f,
+            referenceCellWidth = 344f / 6f,
+            maxKeyWidth = 80f, minGutter = 8f,
+        )
+
         /** 14 键等合并键布局：使用自身的参考格宽，避免手机宽键被误当作平板。 */
         val FourteenKey = KeyVisualPolicy(
             gapX = 5f, gapY = 6f,
