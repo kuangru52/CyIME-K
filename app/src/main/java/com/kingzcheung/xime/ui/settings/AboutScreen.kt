@@ -213,14 +213,14 @@ fun AboutContent(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "CyIME",
+                            text = "CyIME-K",
                             fontSize = 28.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Cyletix 开发的 Android 输入法。拼音、九键、双拼、五笔、仓颉、注音、日语、英文都能打；词库、手写、语音、拍照识字和实时字幕都在手机上运行，不联网也能全部使用。以 GNU GPLv3 开源，致谢与许可见下方。",
+                            text = "本项目基于Cyletix 开发的Android输入法CyIME。拼音、九键、双拼、五笔、仓颉、注音、日语、英文都能打；词库、手写、语音、拍照识字和实时字幕都在手机上运行，不联网也能全部使用。以 GNU GPLv3 开源，致谢与许可见下方。",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -240,7 +240,7 @@ fun AboutContent(
             
             // 作者与源代码使用同一种完整卡片。
                 AboutLinkCard(
-                    title = "kuangru52 · 维护与开发",
+                    title = "kuangru52 · 精简与修改",
                     subtitle = "github.com/kuangru52",
                     icon = Icons.TwoTone.PersonOutline,
                     onClick = { uriHandler.openUri("https://github.com/kuangru52") },
