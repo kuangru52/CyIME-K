@@ -101,15 +101,12 @@ fun CellDictionarySettingsPanel(
     val catalogIds = CellDictionaryCatalog.offers.map { it.id }.toSet() + builtinIds
     fun matches(name: String, group: String) =
         query.isBlank() || name.contains(query.trim(), ignoreCase = true) || group.contains(query.trim())
-    // One list grouped by category: built-in first, then Sogou, then the user's own imports.
+    // 仅列出已安装/已导入的词库，不再在页面中陈列数十个未下载的细胞词库。
     val rows = buildList {
         CellDictionaryCatalog.builtins.forEach { builtin ->
             installed[builtin.id]?.let { add(DictionaryItem(builtin.id, builtin.name, builtin.category, it, null, builtin.sourceUrl)) }
         }
-        CellDictionaryCatalog.offers.forEach { offer ->
-            add(DictionaryItem(offer.id, offer.name, offer.category, installed[offer.id], offer, offer.sourceUrl))
-        }
-        dictionaries.installed.filter { it.id !in catalogIds }.forEach {
+        dictionaries.installed.filter { it.id !in builtinIds }.forEach {
             add(DictionaryItem(it.id, it.name, MY_IMPORTS, it, null, ""))
         }
     }.filter { matches(it.name, it.category) }.groupBy { it.category }
@@ -148,16 +145,22 @@ fun CellDictionarySettingsPanel(
         val listState = rememberLazyListState()
         LazyColumn(state = listState, modifier = Modifier.settingsGutterScroll(listState).fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-            // 顶上只留搜索和导入一行，词库列表紧跟着；开关和说明放到列表下面（11-03「占了半个屏幕」）。
+            item {
+                Button(onClick = onImport, enabled = !state.busy,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = 4.dp)) {
+                    Text("选择文件导入词库")
+                }
+            }
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    DictionarySearchField(query, { query = it }, "搜索词库", Modifier.weight(1f))
-                    TextButton(onClick = onImport, enabled = !state.busy, modifier = Modifier.padding(start = 8.dp)) {
-                        Text("导入文件")
-                    }
                     TextButton(onClick = { showExport = true }, enabled = !state.busy,
                         modifier = Modifier.testTag("cell-dictionary-export")) {
-                        Text("导出")
+                        Text("导出词库")
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { showGuide = true },
+                        modifier = Modifier.testTag("cell-dictionary-import-hint")) {
+                        Text("格式说明与示例")
                     }
                 }
             }
@@ -168,25 +171,70 @@ fun CellDictionarySettingsPanel(
                         color = if (state.error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                 }
             } }
-            if (rows.isEmpty()) item {
-                DictionaryEmptyLine("没有找到词库")
-            }
-            rows.forEach { (category, items) ->
-                item(key = "header-$category") { SettingsGroupTitle(category, Modifier.padding(top = 8.dp)) }
-                itemsIndexed(items, key = { _, item -> item.id }) { row, item ->
-                    SettingsGroupRow(row, items.size) {
-                        DictionaryRow(item, item.id in dictionaries.selected, item.id in dictionaries.applied, state.busy,
-                            cost = share(item.id, item.installed?.count ?: item.offer?.entryCount ?: 0),
-                            onSelect = { onSelect(item.id, it) }, onDownload = { item.offer?.let(onDownload) },
-                            onSource = item.sourceUrl.takeIf { it.isNotBlank() }?.let { url -> { onSource(url) } },
-                            onRemove = if (item.id in builtinIds) null else ({ onRemove(item.id) }))
-                    }
+            item(key = "downloads-title") { SettingsGroupTitle("词库下载链接", Modifier.padding(top = 8.dp)) }
+            item(key = "download-sogou") {
+                SettingsGroupRow(0, 3) {
+                    SettingsListRow("搜狗细胞词库官网", "https://pinyin.sogou.com/dict/",
+                        Modifier.clickable { onSource(CellDictionaryCatalog.SOURCE_URL) })
                 }
             }
-            item {
-                TextButton(onClick = { onSource(CellDictionaryCatalog.SOURCE_URL) },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Text("到搜狗词库网站找更多")
+            item(key = "download-rime-ice") {
+                SettingsGroupRow(1, 3) {
+                    SettingsListRow("Rime 雾凇拼音词库", "https://github.com/iDvel/rime-ice",
+                        Modifier.clickable { onSource("https://github.com/iDvel/rime-ice") })
+                }
+            }
+            item(key = "download-imewlconv") {
+                SettingsGroupRow(2, 3) {
+                    SettingsListRow("深蓝词库转换工具", "支持转换各大输入法词库格式 (.scel / .txt / .dict.yaml)",
+                        Modifier.clickable { onSource("https://github.com/imewlconv/imewlconv") })
+                }
+            }
+            item(key = "format-title") { SettingsGroupTitle("支持的词库格式", Modifier.padding(top = 8.dp)) }
+            item(key = "format-scel") {
+                SettingsGroupRow(0, 4) {
+                    SettingsListRow("搜狗细胞词库 (.scel)", "搜狗词库官网下载的文件直接选择导入", Modifier)
+                }
+            }
+            item(key = "format-txt") {
+                SettingsGroupRow(1, 4) {
+                    SettingsListRow("文本词库 (.txt / .tsv)", "每行「词 拼音」或单列词汇，支持空格/Tab隔开", Modifier)
+                }
+            }
+            item(key = "format-dict-yaml") {
+                SettingsGroupRow(2, 4) {
+                    SettingsListRow("Rime 词典 (.dict.yaml)", "Rime 方案词库，格式每行「词<TAB>拼音<TAB>权重」", Modifier)
+                }
+            }
+            item(key = "format-backup") {
+                SettingsGroupRow(3, 4) {
+                    SettingsListRow("备份文件 (.json / .zip)", "CyIME 或 Gboard 导出的词库备份压缩包", Modifier)
+                }
+            }
+            if (dictionaries.installed.isNotEmpty()) {
+                item(key = "installed-title") {
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        SettingsGroupTitle("已导入的词库", Modifier.weight(1f))
+                        DictionarySearchField(query, { query = it }, "搜索", Modifier.width(140.dp))
+                    }
+                }
+                rows.forEach { (category, items) ->
+                    itemsIndexed(items, key = { _, item -> item.id }) { row, item ->
+                        SettingsGroupRow(row, items.size) {
+                            DictionaryRow(item, item.id in dictionaries.selected, item.id in dictionaries.applied, state.busy,
+                                cost = share(item.id, item.installed?.count ?: item.offer?.entryCount ?: 0),
+                                onSelect = { onSelect(item.id, it) }, onDownload = { item.offer?.let(onDownload) },
+                                onSource = item.sourceUrl.takeIf { it.isNotBlank() }?.let { url -> { onSource(url) } },
+                                onRemove = if (item.id in builtinIds) null else ({ onRemove(item.id) }))
+                        }
+                    }
+                }
+            } else {
+                item(key = "installed-empty-title") { SettingsGroupTitle("已导入的词库", Modifier.padding(top = 8.dp)) }
+                item(key = "installed-empty-row") {
+                    SettingsGroupRow(0, 1) {
+                        DictionaryEmptyLine("暂未导入自定义词库")
+                    }
                 }
             }
             item(key = "settings-title") { SettingsGroupTitle("设置", Modifier.padding(top = 8.dp)) }
