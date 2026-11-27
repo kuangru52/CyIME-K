@@ -220,7 +220,7 @@ fun AboutContent(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "本项目基于Cyletix 开发的Android输入法CyIME。拼音、九键、双拼、五笔、仓颉、注音、日语、英文都能打；词库、手写、语音、拍照识字和实时字幕都在手机上运行，不联网也能全部使用。以 GNU GPLv3 开源，致谢与许可见下方。",
+                            text = "本项目基于Cyletix 开发的Android输入法CyIME。增加首笔画筛选功能，对部分功能和布局进行了微调。",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
