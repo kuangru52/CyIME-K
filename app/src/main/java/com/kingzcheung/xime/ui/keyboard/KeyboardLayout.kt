@@ -1334,7 +1334,7 @@ fun KeyboardLayout(
                                 onKeyPressDown = onKeyPressDown,
                                 onKeyRelease = onKeyRelease,
                                 onVoiceModeChange = onVoiceModeChange,
-                                onSwipeUp = { onKeyPress("toggle_ascii") },
+                                onSwipeUp = { onKeyPress("ime_switch") },
                                 swipeUpLabel = if (isAsciiMode) "中文" else "英文",
                             )
                         }
