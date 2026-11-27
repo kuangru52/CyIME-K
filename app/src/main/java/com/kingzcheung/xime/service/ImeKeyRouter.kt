@@ -1126,7 +1126,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         val spaceSnapshot = service.candidateState.value.takeIf {
             hardwareEvent == null && key == "space" &&
                 (it.candidates.isNotEmpty() || it.focusedT9AssociationIndex != null) &&
-                it.usesT9CandidateNavigation(service.uiState.value.inputProfile)
+                (it.candidateFocus != null || it.usesT9CandidateNavigation(service.uiState.value.inputProfile))
         }
         // A language key does not edit text. Keep an outstanding voice final while the
         // language observer decides whether this is the same native/English pair.
@@ -1809,12 +1809,13 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     } else if (candState.isComposing) {
                         if (candState.candidates.isNotEmpty()) {
                             val prefs = com.kingzcheung.xime.settings.SettingsPreferences.isFirstStrokeFilterEnabled(service)
-                            val index = candState.spaceCandidateIndex(
-                                state.inputProfile,
-                                service,
-                                state.selectedStrokeCode,
-                                prefs
-                            )
+                            val index = candState.candidateFocus?.takeIf { it.matches(candState) }?.index
+                                ?: candState.spaceCandidateIndex(
+                                    state.inputProfile,
+                                    service,
+                                    state.selectedStrokeCode,
+                                    prefs
+                                )
                             if (hardwareEvent != null || !withEditor { commitHeldCandidateEnglish(candState, index) }) {
                                 selectCandidateAsync(index, snapshot = candState)
                             }

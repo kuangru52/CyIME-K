@@ -80,8 +80,6 @@ val prepareSpeechRuntime = tasks.register("prepareSpeechRuntime") {
     }
 }
 afterEvaluate {
-    dependencies.add("debugImplementation", files(speechAar).builtBy(prepareSpeechRuntime))
-    dependencies.add("fullImplementation", files(speechAar).builtBy(prepareSpeechRuntime))
-    dependencies.add("releaseImplementation", files(speechAar).builtBy(prepareSpeechRuntime))
+    dependencies.add("implementation", files(speechAar).builtBy(prepareSpeechRuntime))
 }
 tasks.named("preBuild").configure { dependsOn(prepareSpeechRuntime) }
