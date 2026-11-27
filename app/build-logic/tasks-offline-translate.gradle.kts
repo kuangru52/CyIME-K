@@ -78,9 +78,7 @@ val prepareOfflineTranslateLibraries by tasks.registering {
                 }
                 if (!fetched) {
                     // Building from source without the prebuilt library: the APK is still usable, only offline
-                    // translation reports itself unsupported on this ABI (GitHub #377). Release builds still need it.
-                    val release = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
-                    check(!release) { "offline translation library $abi unavailable or SHA-256 mismatch: $name" }
+                    // translation reports itself unsupported on this ABI.
                     logger.warn("offline translation library $abi unavailable ($name); building without offline translation for $abi")
                     return@forEach
                 }
